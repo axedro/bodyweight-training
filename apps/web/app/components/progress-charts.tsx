@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createBrowserClient } from '@supabase/ssr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { UserProfile, TrainingSession } from '@bodyweight/shared'
 import { TrendingUp, Calendar, Target, Activity } from 'lucide-react'

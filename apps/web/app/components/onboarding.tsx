@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { useSession } from '@supabase/auth-helpers-react'
+import { createBrowserClient } from '@supabase/ssr'
+
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useToast } from './ui/use-toast'
 import { OnboardingData, FitnessLevel } from '@bodyweight/shared'
 
-export function Onboarding() {
+export function Onboarding({ session }: { session: any }) {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<Partial<OnboardingData>>({
@@ -26,9 +26,11 @@ export function Onboarding() {
     preferred_intensity: 0.7,
   })
 
-  const session = useSession()
   const router = useRouter()
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
   const { toast } = useToast()
 
   const updateFormData = (field: keyof OnboardingData, value: any) => {
