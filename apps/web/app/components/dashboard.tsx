@@ -21,6 +21,7 @@ import { routineService } from '../../lib/routine-service'
 import { GeneratedSession, TrainingPlan } from '@bodyweight/shared'
 import { DailyRoutine } from './daily-routine'
 import { SessionFeedback } from './session-feedback'
+import { ProgressCharts } from './progress-charts'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -300,68 +301,7 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
         </TabsContent>
 
         <TabsContent value="progress" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  Progreso Semanal
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Adherencia</span>
-                      <span>{Math.round((icaData?.adherence_rate || 0) * 100)}%</span>
-                    </div>
-                    <Progress value={(icaData?.adherence_rate || 0) * 100} />
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Fitness Level</span>
-                      <span>{profile?.current_fitness_score?.toFixed(1) || 'N/A'}/10</span>
-                    </div>
-                    <Progress value={(profile?.current_fitness_score || 0) * 10} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5" />
-                  Métricas Recientes
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Promedio RPE</span>
-                    <span className="font-medium">
-                      {icaData?.recent_performance?.avg_rpe?.toFixed(1) || 'N/A'}/10
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Tasa de Completación</span>
-                    <span className="font-medium">
-                      {Math.round((icaData?.recent_performance?.avg_completion_rate || 0) * 100)}%
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Último Entrenamiento</span>
-                    <span className="font-medium">
-                      {icaData?.user_state?.last_training_date ? 
-                        new Date(icaData.user_state.last_training_date).toLocaleDateString() : 
-                        'N/A'
-                      }
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <ProgressCharts userProfile={profile} />
         </TabsContent>
       </Tabs>
     </div>

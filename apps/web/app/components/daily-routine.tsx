@@ -31,9 +31,9 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
   const [sessionCompleted, setSessionCompleted] = useState(false)
 
   const allExercises = [
-    ...session.warm_up.map(ex => ({ ...ex, type: 'warmup' })),
-    ...session.main_work.map(block => ({ ...block.exercise, type: 'main', ...block })),
-    ...session.cool_down.map(ex => ({ ...ex, type: 'cooldown' }))
+    ...session.warm_up.map(ex => ({ ...ex.exercise, type: 'warmup', ...ex })),
+    ...session.exercise_blocks.map(block => ({ ...block.exercise, type: 'main', ...block })),
+    ...session.cool_down.map(ex => ({ ...ex.exercise, type: 'cooldown', ...ex }))
   ]
 
   const currentExercise = allExercises[currentExerciseIndex]
@@ -152,19 +152,19 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
-                {session.estimated_duration}min
+                {session.duration_minutes}min
               </div>
               <p className="text-sm text-muted-foreground">Duración</p>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                {Math.round(session.intensity_target * 100)}%
+                {Math.round(session.intensity * 100)}%
               </div>
               <p className="text-sm text-muted-foreground">Intensidad</p>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
-                {session.recovery_requirement}h
+                2h
               </div>
               <p className="text-sm text-muted-foreground">Recuperación</p>
             </div>
@@ -197,7 +197,7 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
           <CardContent className="space-y-4">
             <div className="text-center">
               <h3 className="text-xl font-semibold">{currentExercise.name}</h3>
-              <p className="text-muted-foreground">{currentExercise.description}</p>
+              <p className="text-muted-foreground">{currentExercise.instructions || 'Sigue la técnica apropiada'}</p>
             </div>
 
             {currentExercise.type === 'main' && (

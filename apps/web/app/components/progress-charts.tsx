@@ -4,9 +4,25 @@ import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { UserProfile, TrainingSession } from '@bodyweight/shared'
-import { TrendingUp, Calendar, Target, Activity } from 'lucide-react'
+import { TrendingUp, Calendar, Target, Activity, BarChart3 } from 'lucide-react'
 import { format, subDays, startOfWeek, endOfWeek } from 'date-fns'
 import { es } from 'date-fns/locale'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts'
 
 interface ProgressChartsProps {
   userProfile: UserProfile
@@ -15,7 +31,10 @@ interface ProgressChartsProps {
 export function ProgressCharts({ userProfile }: ProgressChartsProps) {
   const [sessions, setSessions] = useState<TrainingSession[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   useEffect(() => {
     loadSessionsForCharts()
@@ -186,7 +205,181 @@ export function ProgressCharts({ userProfile }: ProgressChartsProps) {
         </CardContent>
       </Card>
 
-      {/* Recent Performance */}
+      {/* ICA Trend Chart */}
+      {sessions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Evolución del ICA
+            </CardTitle>
+            <CardDescription>
+              Progreso del Índice de Capacidad Actual en el tiempo
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div style={{ width: '100%', height: '300px' }}>
+              <ResponsiveContainer>
+                <LineChart
+                  data={sessions.slice(-10).map((session, index) => ({
+                    session: `S${index + 1}`,
+                    ica: session.ica_score || 0,
+                    date: format(new Date(session.session_date), 'dd/MM', { locale: es }),
+                    intensity: Math.round((session.actual_intensity || 0) * 100)
+                  }))}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis domain={[0, 3]} />
+                  <Tooltip 
+                    formatter={(value, name) => [
+                      name === 'ica' ? `${value.toFixed(2)}` : `${value}%`,
+                      name === 'ica' ? 'ICA Score' : 'Intensidad'
+                    ]}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="ica" 
+                    stroke="#8884d8" 
+                    strokeWidth={3}
+                    dot={{ r: 5 }}
+                    activeDot={{ r: 7 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Weekly Volume Chart */}
+      {sessions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Volumen Semanal
+            </CardTitle>
+            <CardDescription>
+              Sesiones por semana en el último mes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div style={{ width: '100%', height: '300px' }}>
+              <ResponsiveContainer>
+                <BarChart
+                  data={Array.from({ length: 4 }, (_, weekIndex) => {
+                    const weekStart = subDays(new Date(), (3 - weekIndex) * 7)
+                    const weekEnd = subDays(weekStart, -6)
+                    
+                    const weekSessions = sessions.filter(session => {
+                      const sessionDate = new Date(session.session_date)
+                      return sessionDate >= weekStart && sessionDate <= weekEnd
+                    })
+
+                    return {
+                      week: `S${weekIndex + 1}`,
+                      sessions: weekSessions.length,
+                      avgIntensity: weekSessions.length > 0 
+                        ? weekSessions.reduce((sum, s) => sum + (s.actual_intensity || 0), 0) / weekSessions.length * 100
+                        : 0,
+                      totalMinutes: weekSessions.reduce((sum, s) => sum + (s.actual_duration || 0), 0)
+                    }
+                  })}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="week" />
+                  <YAxis />
+                  <Tooltip 
+                    formatter={(value, name) => [
+                      name === 'sessions' ? `${value} sesiones` :
+                      name === 'avgIntensity' ? `${Math.round(value)}% intensidad` :
+                      `${value} minutos`,
+                      name === 'sessions' ? 'Sesiones' :
+                      name === 'avgIntensity' ? 'Intensidad Promedio' :
+                      'Duración Total'
+                    ]}
+                  />
+                  <Bar dataKey="sessions" fill="#82ca9d" />
+                  <Bar dataKey="totalMinutes" fill="#8884d8" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Intensity Distribution */}
+      {sessions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              Distribución de Intensidad
+            </CardTitle>
+            <CardDescription>
+              Frecuencia de rangos de intensidad en tus entrenamientos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div style={{ width: '100%', height: '300px' }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={[
+                      {
+                        name: 'Baja (50-60%)',
+                        value: sessions.filter(s => (s.actual_intensity || 0) * 100 < 60).length,
+                        fill: '#82ca9d'
+                      },
+                      {
+                        name: 'Media (60-75%)',
+                        value: sessions.filter(s => {
+                          const intensity = (s.actual_intensity || 0) * 100
+                          return intensity >= 60 && intensity < 75
+                        }).length,
+                        fill: '#8884d8'
+                      },
+                      {
+                        name: 'Alta (75-85%)',
+                        value: sessions.filter(s => {
+                          const intensity = (s.actual_intensity || 0) * 100
+                          return intensity >= 75 && intensity < 85
+                        }).length,
+                        fill: '#ffc658'
+                      },
+                      {
+                        name: 'Máxima (85%+)',
+                        value: sessions.filter(s => (s.actual_intensity || 0) * 100 >= 85).length,
+                        fill: '#ff7c7c'
+                      }
+                    ].filter(item => item.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {[
+                      { fill: '#82ca9d' },
+                      { fill: '#8884d8' },
+                      { fill: '#ffc658' },
+                      { fill: '#ff7c7c' }
+                    ].map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent Performance List */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
