@@ -25,9 +25,13 @@ import { SessionFeedback } from './session-feedback'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export function Dashboard() {
-  const [session, setSession] = useState<any>(null)
-  const [userProfile, setUserProfile] = useState<any>(null)
+interface DashboardProps {
+  user: any
+  userProfile: any
+  onLogout: () => void
+}
+
+export function Dashboard({ user, userProfile: profile, onLogout }: DashboardProps) {
   const [currentRoutine, setCurrentRoutine] = useState<GeneratedSession | null>(null)
   const [icaData, setIcaData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -44,10 +48,6 @@ export function Dashboard() {
   const loadDashboardData = async () => {
     try {
       setLoading(true)
-      
-      // Obtener sesión del usuario
-      const { data: { session: userSession } } = await supabase.auth.getSession()
-      setSession(userSession)
 
       if (userSession?.user) {
         // Cargar perfil del usuario
@@ -146,14 +146,15 @@ export function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">
-            Bienvenido de vuelta, {userProfile?.email}
+            Bienvenido de vuelta, {profile?.email}
           </p>
         </div>
-        <Button onClick={generateNewRoutine} disabled={generatingRoutine}>
-          {generatingRoutine ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Generando...
+        <div className="flex gap-2">
+          <Button onClick={generateNewRoutine} disabled={generatingRoutine}>
+            {generatingRoutine ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Generando...
             </>
           ) : (
             <>
@@ -162,6 +163,13 @@ export function Dashboard() {
             </>
           )}
         </Button>
+        <Button 
+          variant="outline" 
+          onClick={onLogout}
+        >
+          Logout
+        </Button>
+        </div>
       </div>
 
       {/* ICA Score Card */}
@@ -312,9 +320,9 @@ export function Dashboard() {
                   <div>
                     <div className="flex justify-between text-sm mb-2">
                       <span>Fitness Level</span>
-                      <span>{userProfile?.current_fitness_score?.toFixed(1) || 'N/A'}/10</span>
+                      <span>{profile?.current_fitness_score?.toFixed(1) || 'N/A'}/10</span>
                     </div>
-                    <Progress value={(userProfile?.current_fitness_score || 0) * 10} />
+                    <Progress value={(profile?.current_fitness_score || 0) * 10} />
                   </div>
                 </div>
               </CardContent>

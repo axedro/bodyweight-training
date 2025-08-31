@@ -1,69 +1,128 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
-
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { useToast } from './ui/use-toast'
-import { OnboardingData, FitnessLevel } from '@bodyweight/shared'
+import { Progress } from './ui/progress'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
-export function Onboarding({ session }: { session: any }) {
-  const [step, setStep] = useState(1)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+interface OnboardingProps {
+  user: any
+  onComplete: (profile: any) => void
+}
+
+export function Onboarding({ user, onComplete }: OnboardingProps) {
+  const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState<Partial<OnboardingData>>({
-    age: undefined,
-    weight: undefined,
-    height: undefined,
-    body_fat_percentage: undefined,
+  const [formData, setFormData] = useState({
+    age: '',
+    weight: '',
+    height: '',
     fitness_level: 'beginner',
-    experience_years: 0,
-    available_days_per_week: 3,
-    preferred_session_duration: 30,
-    preferred_intensity: 0.7,
+    experience_years: '0',
+    available_days_per_week: '3',
+    preferred_session_duration: '30',
+    preferred_intensity: '0.7',
   })
 
-  const router = useRouter()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
   const { toast } = useToast()
 
-  const updateFormData = (field: keyof OnboardingData, value: any) => {
+  const totalSteps = 3
+
+  const updateFormData = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = async () => {
-    if (!session?.user) return
+  const nextStep = () => {
+    if (currentStep < totalSteps) {
+      setCurrentStep(currentStep + 1)
+    }
+  }
+
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
+
+  const isStepValid = (step: number) => {
+    switch (step) {
+      case 1:
+        return formData.age && formData.weight && formData.height
+      case 2:
+        return formData.fitness_level && formData.experience_years
+      case 3:
+        return formData.available_days_per_week && formData.preferred_session_duration && formData.preferred_intensity
+      default:
+        return false
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!user?.id) {
+      console.error('❌ No user ID available')
+      return
+    }
 
     setLoading(true)
 
     try {
-      // Crear perfil de usuario
-      const { error } = await supabase
-        .from('user_profiles')
-        .upsert({
-          id: session.user.id,
-          email: session.user.email,
-          ...formData,
-        })
+      console.log('📝 Starting onboarding for user:', user.id)
+      console.log('📝 Form data:', formData)
 
-      if (error) throw error
+      const profileData = {
+        id: user.id,
+        email: user.email,
+        age: parseInt(formData.age),
+        weight: parseFloat(formData.weight),
+        height: parseFloat(formData.height),
+        fitness_level: formData.fitness_level,
+        experience_years: parseInt(formData.experience_years),
+        available_days_per_week: parseInt(formData.available_days_per_week),
+        preferred_session_duration: parseInt(formData.preferred_session_duration),
+        preferred_intensity: parseFloat(formData.preferred_intensity),
+      }
+
+      console.log('📝 Profile data to save:', profileData)
+
+      // Update the profile (it should already exist from the trigger)
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .update(profileData)
+        .eq('id', user.id)
+        .select()
+        .single()
+
+      console.log('✅ Update result:', { data: !!data, error })
+
+      if (error) {
+        console.error('❌ Update failed:', error)
+        throw error
+      }
 
       toast({
-        title: "¡Perfil creado!",
+        title: "¡Perfil completado!",
         description: "Tu perfil ha sido configurado correctamente",
       })
 
-      router.push('/dashboard')
-    } catch (error) {
+      console.log('🎉 Onboarding completed successfully')
+      onComplete(data)
+
+    } catch (error: any) {
+      console.error('❌ Onboarding error:', error)
       toast({
         title: "Error",
-        description: "No se pudo crear el perfil. Intenta de nuevo.",
+        description: error.message || "No se pudo completar el onboarding",
         variant: "destructive",
       })
     } finally {
@@ -71,148 +130,179 @@ export function Onboarding({ session }: { session: any }) {
     }
   }
 
-  const renderStep = () => {
-    switch (step) {
+  const renderStepContent = () => {
+    switch (currentStep) {
       case 1:
         return (
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Edad</label>
-              <Input
-                type="number"
-                placeholder="25"
-                value={formData.age || ''}
-                onChange={(e) => updateFormData('age', parseInt(e.target.value))}
-                min="16"
-                max="100"
-              />
+          <div className="space-y-6">
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-semibold text-gray-900">Información Básica</h3>
+              <p className="text-gray-600 mt-2">Cuéntanos sobre ti para personalizar tu entrenamiento</p>
             </div>
-            <div>
-              <label className="text-sm font-medium">Peso (kg)</label>
-              <Input
-                type="number"
-                placeholder="70"
-                value={formData.weight || ''}
-                onChange={(e) => updateFormData('weight', parseFloat(e.target.value))}
-                min="30"
-                max="200"
-                step="0.1"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Altura (cm)</label>
-              <Input
-                type="number"
-                placeholder="170"
-                value={formData.height || ''}
-                onChange={(e) => updateFormData('height', parseFloat(e.target.value))}
-                min="120"
-                max="250"
-                step="0.1"
-              />
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Edad</label>
+                <Input
+                  type="number"
+                  placeholder="25"
+                  value={formData.age}
+                  onChange={(e) => updateFormData('age', e.target.value)}
+                  min="16"
+                  max="100"
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-700">Peso (kg)</label>
+                <Input
+                  type="number"
+                  placeholder="70"
+                  value={formData.weight}
+                  onChange={(e) => updateFormData('weight', e.target.value)}
+                  min="30"
+                  max="200"
+                  step="0.1"
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-700">Altura (cm)</label>
+                <Input
+                  type="number"
+                  placeholder="170"
+                  value={formData.height}
+                  onChange={(e) => updateFormData('height', e.target.value)}
+                  min="120"
+                  max="250"
+                  step="0.1"
+                  className="mt-1"
+                />
+              </div>
             </div>
           </div>
         )
 
       case 2:
         return (
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Nivel de fitness</label>
-              <Select
-                value={formData.fitness_level}
-                onValueChange={(value: FitnessLevel) => updateFormData('fitness_level', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona tu nivel" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="beginner">Principiante</SelectItem>
-                  <SelectItem value="intermediate">Intermedio</SelectItem>
-                  <SelectItem value="advanced">Avanzado</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="space-y-6">
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-semibold text-gray-900">Experiencia en Fitness</h3>
+              <p className="text-gray-600 mt-2">Ayúdanos a ajustar el nivel de dificultad</p>
             </div>
-            <div>
-              <label className="text-sm font-medium">Años de experiencia</label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={formData.experience_years || ''}
-                onChange={(e) => updateFormData('experience_years', parseInt(e.target.value))}
-                min="0"
-                max="50"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Días disponibles por semana</label>
-              <Select
-                value={formData.available_days_per_week?.toString()}
-                onValueChange={(value) => updateFormData('available_days_per_week', parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona días" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2">2 días</SelectItem>
-                  <SelectItem value="3">3 días</SelectItem>
-                  <SelectItem value="4">4 días</SelectItem>
-                  <SelectItem value="5">5 días</SelectItem>
-                  <SelectItem value="6">6 días</SelectItem>
-                </SelectContent>
-              </Select>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Nivel de fitness actual</label>
+                <Select
+                  value={formData.fitness_level}
+                  onValueChange={(value) => updateFormData('fitness_level', value)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecciona tu nivel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="beginner">🌱 Principiante - Recién empiezo</SelectItem>
+                    <SelectItem value="intermediate">💪 Intermedio - Tengo experiencia</SelectItem>
+                    <SelectItem value="advanced">🔥 Avanzado - Muy experimentado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">Años de experiencia</label>
+                <Select
+                  value={formData.experience_years}
+                  onValueChange={(value) => updateFormData('experience_years', value)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecciona los años" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">0 años - Soy nuevo</SelectItem>
+                    <SelectItem value="1">1 año - Algo de experiencia</SelectItem>
+                    <SelectItem value="2">2 años - Experiencia moderada</SelectItem>
+                    <SelectItem value="3">3+ años - Bastante experiencia</SelectItem>
+                    <SelectItem value="5">5+ años - Muy experimentado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">Días disponibles por semana</label>
+                <Select
+                  value={formData.available_days_per_week}
+                  onValueChange={(value) => updateFormData('available_days_per_week', value)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="¿Cuántos días puedes entrenar?" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2">2 días - Poco tiempo</SelectItem>
+                    <SelectItem value="3">3 días - Equilibrio perfecto</SelectItem>
+                    <SelectItem value="4">4 días - Comprometido</SelectItem>
+                    <SelectItem value="5">5 días - Muy dedicado</SelectItem>
+                    <SelectItem value="6">6 días - Atlético</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         )
 
       case 3:
         return (
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Duración preferida de sesión (minutos)</label>
-              <Select
-                value={formData.preferred_session_duration?.toString()}
-                onValueChange={(value) => updateFormData('preferred_session_duration', parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona duración" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="20">20 minutos</SelectItem>
-                  <SelectItem value="30">30 minutos</SelectItem>
-                  <SelectItem value="45">45 minutos</SelectItem>
-                  <SelectItem value="60">60 minutos</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="space-y-6">
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-semibold text-gray-900">Preferencias de Entrenamiento</h3>
+              <p className="text-gray-600 mt-2">Personaliza tu rutina perfecta</p>
             </div>
-            <div>
-              <label className="text-sm font-medium">Intensidad preferida</label>
-              <Select
-                value={formData.preferred_intensity?.toString()}
-                onValueChange={(value) => updateFormData('preferred_intensity', parseFloat(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona intensidad" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0.5">Baja (50%)</SelectItem>
-                  <SelectItem value="0.7">Media (70%)</SelectItem>
-                  <SelectItem value="0.8">Alta (80%)</SelectItem>
-                  <SelectItem value="0.9">Muy alta (90%)</SelectItem>
-                </SelectContent>
-              </Select>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Duración preferida por sesión</label>
+                <Select
+                  value={formData.preferred_session_duration}
+                  onValueChange={(value) => updateFormData('preferred_session_duration', value)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="¿Cuánto tiempo quieres entrenar?" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="20">⚡ 20 minutos - Rápido y efectivo</SelectItem>
+                    <SelectItem value="30">🎯 30 minutos - Equilibrado</SelectItem>
+                    <SelectItem value="45">💪 45 minutos - Completo</SelectItem>
+                    <SelectItem value="60">🔥 60 minutos - Intensivo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">Intensidad preferida</label>
+                <Select
+                  value={formData.preferred_intensity}
+                  onValueChange={(value) => updateFormData('preferred_intensity', value)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="¿Qué tan intenso quieres que sea?" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0.5">🟢 Suave (50%) - Relajado</SelectItem>
+                    <SelectItem value="0.7">🟡 Moderado (70%) - Equilibrado</SelectItem>
+                    <SelectItem value="0.8">🟠 Intenso (80%) - Desafiante</SelectItem>
+                    <SelectItem value="0.9">🔴 Muy intenso (90%) - Máximo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div>
-              <label className="text-sm font-medium">Porcentaje de grasa corporal (opcional)</label>
-              <Input
-                type="number"
-                placeholder="20"
-                value={formData.body_fat_percentage || ''}
-                onChange={(e) => updateFormData('body_fat_percentage', parseFloat(e.target.value))}
-                min="5"
-                max="50"
-                step="0.1"
-              />
+
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">¡Casi listo! 🎉</h4>
+              <p className="text-sm text-blue-700">
+                Crearemos rutinas personalizadas basadas en tus preferencias y progreso.
+              </p>
             </div>
           </div>
         )
@@ -222,99 +312,52 @@ export function Onboarding({ session }: { session: any }) {
     }
   }
 
-  const canProceed = () => {
-    switch (step) {
-      case 1:
-        return formData.age && formData.weight && formData.height
-      case 2:
-        return formData.fitness_level && formData.available_days_per_week !== undefined
-      case 3:
-        return formData.preferred_session_duration && formData.preferred_intensity !== undefined
-      default:
-        return false
-    }
-  }
-
-  const getStepTitle = () => {
-    switch (step) {
-      case 1:
-        return "Información básica"
-      case 2:
-        return "Experiencia y disponibilidad"
-      case 3:
-        return "Preferencias de entrenamiento"
-      default:
-        return ""
-    }
-  }
-
-  const getStepDescription = () => {
-    switch (step) {
-      case 1:
-        return "Necesitamos algunos datos básicos para personalizar tu entrenamiento"
-      case 2:
-        return "Cuéntanos sobre tu experiencia y cuánto tiempo puedes dedicar"
-      case 3:
-        return "Configura tus preferencias para el entrenamiento"
-      default:
-        return ""
-    }
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex space-x-2">
-              {[1, 2, 3].map((stepNumber) => (
-                <div
-                  key={stepNumber}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    stepNumber <= step
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {stepNumber}
-                </div>
-              ))}
-            </div>
+        <CardHeader className="text-center">
+          <CardTitle className="flex items-center justify-center gap-2">
+            Configurar Perfil
+            <span className="text-sm font-normal text-gray-500">({currentStep}/{totalSteps})</span>
+          </CardTitle>
+          <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+            <Progress 
+              value={(currentStep / totalSteps) * 100} 
+              className="h-2"
+            />
           </div>
-          <CardTitle>{getStepTitle()}</CardTitle>
-          <CardDescription>{getStepDescription()}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-6">
-            {renderStep()}
-            
-            <div className="flex justify-between pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep(Math.max(1, step - 1))}
-                disabled={step === 1}
-              >
-                Anterior
-              </Button>
-              
-              {step < 3 ? (
+          <form onSubmit={currentStep === totalSteps ? handleSubmit : (e) => { e.preventDefault(); nextStep(); }} className="space-y-6">
+            {renderStepContent()}
+
+            <div className="flex gap-3 pt-4">
+              {currentStep > 1 && (
                 <Button
                   type="button"
-                  onClick={() => setStep(step + 1)}
-                  disabled={!canProceed()}
+                  variant="outline"
+                  onClick={prevStep}
+                  className="flex-1"
                 >
-                  Siguiente
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={!canProceed() || loading}
-                >
-                  {loading ? 'Creando perfil...' : 'Completar'}
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Anterior
                 </Button>
               )}
+              
+              <Button 
+                type="submit"
+                className="flex-1"
+                disabled={!isStepValid(currentStep) || loading}
+              >
+                {currentStep === totalSteps ? (
+                  loading ? 'Guardando...' : 'Completar Perfil'
+                ) : (
+                  <>
+                    Siguiente
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </>
+                )}
+              </Button>
             </div>
           </form>
         </CardContent>

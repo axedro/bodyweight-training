@@ -9,48 +9,106 @@ import { Dashboard } from './components/dashboard'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
+type AppState = 'loading' | 'auth' | 'onboarding' | 'dashboard'
+
 export default function HomePage() {
-  const [session, setSession] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [onboardingComplete, setOnboardingComplete] = useState(false)
+  const [appState, setAppState] = useState<AppState>('loading')
+  const [user, setUser] = useState<any>(null)
+  const [userProfile, setUserProfile] = useState<any>(null)
+  
   const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
 
   useEffect(() => {
-    loadSession()
+    initializeAuth()
   }, [])
 
-  const loadSession = async () => {
+  const initializeAuth = async () => {
     try {
-      const { data: { session: userSession } } = await supabase.auth.getSession()
-      setSession(userSession)
+      console.log('🚀 Initializing authentication...')
       
-      if (userSession?.user) {
-        await checkOnboardingStatus(userSession.user.id)
+      // Get current session
+      const { data: { session }, error } = await supabase.auth.getSession()
+      console.log('📋 Session check:', { session: !!session, error })
+      
+      if (error) {
+        console.error('❌ Auth error:', error)
+        setAppState('auth')
+        return
       }
+
+      if (!session) {
+        console.log('👤 No session found, showing auth')
+        setAppState('auth')
+        return
+      }
+
+      // User is logged in, check profile
+      setUser(session.user)
+      await checkUserProfile(session.user.id)
+
     } catch (error) {
-      console.error('Error loading session:', error)
-    } finally {
-      setLoading(false)
+      console.error('❌ Initialize error:', error)
+      setAppState('auth')
     }
   }
 
-  const checkOnboardingStatus = async (userId: string) => {
+  const checkUserProfile = async (userId: string) => {
     try {
-      const { data: profile } = await supabase
+      console.log('🔍 Checking user profile for:', userId)
+      
+      const { data: profile, error } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
         .single()
 
-      if (profile && profile.age) {
-        setOnboardingComplete(true)
+      console.log('👤 Profile result:', { profile: !!profile, error })
+
+      if (error || !profile) {
+        console.log('❌ No profile found, showing auth')
+        setAppState('auth')
+        return
       }
+
+      setUserProfile(profile)
+
+      // Check if onboarding is complete (has age)
+      if (profile.age) {
+        console.log('✅ Profile complete, showing dashboard')
+        setAppState('dashboard')
+      } else {
+        console.log('📝 Profile incomplete, showing onboarding')
+        setAppState('onboarding')
+      }
+
     } catch (error) {
-      console.error('Error checking onboarding status:', error)
+      console.error('❌ Profile check error:', error)
+      setAppState('auth')
     }
   }
 
-  if (loading) {
+  const handleAuthSuccess = (session: any) => {
+    console.log('🎉 Auth successful:', session.user.email)
+    setUser(session.user)
+    checkUserProfile(session.user.id)
+  }
+
+  const handleOnboardingComplete = (profile: any) => {
+    console.log('🎉 Onboarding complete')
+    setUserProfile(profile)
+    setAppState('dashboard')
+  }
+
+  const handleLogout = async () => {
+    console.log('👋 Logging out...')
+    await supabase.auth.signOut()
+    setUser(null)
+    setUserProfile(null)
+    setAppState('auth')
+  }
+
+  // Loading state
+  if (appState === 'loading') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
@@ -61,7 +119,8 @@ export default function HomePage() {
     )
   }
 
-  if (!session) {
+  // Auth state
+  if (appState === 'auth') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="max-w-md w-full mx-auto p-6">
@@ -73,19 +132,32 @@ export default function HomePage() {
               Entrenamiento adaptativo de fuerza sin pesas
             </p>
           </div>
-          <Auth />
+          <Auth onAuthSuccess={handleAuthSuccess} />
         </div>
       </div>
     )
   }
 
-  if (!onboardingComplete) {
-    return <Onboarding session={session} />
+  // Onboarding state
+  if (appState === 'onboarding') {
+    return (
+      <Onboarding 
+        user={user}
+        onComplete={handleOnboardingComplete}
+      />
+    )
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <Dashboard />
-    </div>
-  )
+  // Dashboard state
+  if (appState === 'dashboard') {
+    return (
+      <Dashboard 
+        user={user}
+        userProfile={userProfile}
+        onLogout={handleLogout}
+      />
+    )
+  }
+
+  return null
 }
