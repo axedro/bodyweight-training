@@ -1,18 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
-// Definir tipos básicos
-interface UserProfile {
-  id: string;
-  email: string;
-  age?: number;
-  weight?: number;
-  height?: number;
-  experience_level?: string;
-  available_days?: number;
-  created_at?: string;
-  updated_at?: string;
-}
+import { UserProfile } from '@bodyweight/shared';
 
 interface SupabaseContextType {
   supabase: SupabaseClient;

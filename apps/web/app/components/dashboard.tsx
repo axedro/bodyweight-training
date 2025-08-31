@@ -1,186 +1,361 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useSession } from '@supabase/auth-helpers-react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import React, { useState, useEffect } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
-import { useToast } from './ui/use-toast'
-import { UserProfile, TrainingPlan } from '@bodyweight/shared'
-import { CurrentSession } from './current-session'
-import { TrainingHistory } from './training-history'
-import { ProgressCharts } from './progress-charts'
-import { WellnessLog } from './wellness-log'
+import { Badge } from './ui/badge'
+import { Progress } from './ui/progress'
+import { 
+  Activity, 
+  Calendar, 
+  TrendingUp, 
+  Target, 
+  Clock, 
+  Zap,
+  Play,
+  BarChart3
+} from 'lucide-react'
+import { createBrowserClient } from '@supabase/ssr'
+import { routineService } from '../../lib/routine-service'
+import { GeneratedSession, TrainingPlan } from '@bodyweight/shared'
+import { DailyRoutine } from './daily-routine'
+import { SessionFeedback } from './session-feedback'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export function Dashboard() {
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [trainingPlan, setTrainingPlan] = useState<TrainingPlan | null>(null)
+  const [session, setSession] = useState<any>(null)
+  const [userProfile, setUserProfile] = useState<any>(null)
+  const [currentRoutine, setCurrentRoutine] = useState<GeneratedSession | null>(null)
+  const [icaData, setIcaData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const session = useSession()
-  const supabase = createClientComponentClient()
-  const { toast } = useToast()
+  const [generatingRoutine, setGeneratingRoutine] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [trainingHistory, setTrainingHistory] = useState<any[]>([])
+
+  const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
 
   useEffect(() => {
-    if (session?.user) {
-      loadUserData()
-    }
-  }, [session])
+    loadDashboardData()
+  }, [])
 
-  const loadUserData = async () => {
-    if (!session?.user) return
-
+  const loadDashboardData = async () => {
     try {
-      // Cargar perfil de usuario
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
+      setLoading(true)
+      
+      // Obtener sesión del usuario
+      const { data: { session: userSession } } = await supabase.auth.getSession()
+      setSession(userSession)
 
-      if (profileError) throw profileError
+      if (userSession?.user) {
+        // Cargar perfil del usuario
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', userSession.user.id)
+          .single()
+        
+        setUserProfile(profile)
 
-      setUserProfile(profile)
+        // Cargar rutina actual
+        const routine = await routineService.getCurrentRoutine()
+        setCurrentRoutine(routine)
 
-      // Generar plan de entrenamiento
-      await generateTrainingPlan(profile)
+        // Calcular ICA
+        try {
+          const icaResult = await routineService.calculateICA()
+          setIcaData(icaResult)
+        } catch (error) {
+          console.error('Error calculating ICA:', error)
+        }
 
+        // Cargar historial de entrenamiento
+        const history = await routineService.getTrainingHistory(5)
+        setTrainingHistory(history)
+      }
     } catch (error) {
-      console.error('Error loading user data:', error)
-      toast({
-        title: "Error",
-        description: "No se pudo cargar los datos del usuario",
-        variant: "destructive",
-      })
+      console.error('Error loading dashboard data:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const generateTrainingPlan = async (profile: UserProfile) => {
+  const generateNewRoutine = async () => {
     try {
-      // Aquí se llamaría al algoritmo adaptativo
-      // Por ahora, creamos un plan básico
-      const mockPlan: TrainingPlan = {
-        current_session: {
-          warm_up: [],
-          main_work: [],
-          cool_down: [],
-          total_volume_load: 0,
-          estimated_duration: 30,
-          intensity_target: 0.7,
-          recovery_requirement: 24,
-        },
-        next_sessions: [],
-        ica_score: 5.0,
-        recommendations: [
-          "Mantén una buena hidratación",
-          "Descansa lo suficiente entre sesiones",
-          "Enfócate en la forma técnica"
-        ]
+      setGeneratingRoutine(true)
+      
+      const trainingPlan = await routineService.generateDailyRoutine(1)
+      
+      if (trainingPlan.sessions.length > 0) {
+        const newSession = trainingPlan.sessions[0]
+        setCurrentRoutine(newSession)
+        
+        // Guardar la sesión en la base de datos
+        await routineService.createTrainingSession(newSession)
       }
-
-      setTrainingPlan(mockPlan)
     } catch (error) {
-      console.error('Error generating training plan:', error)
+      console.error('Error generating routine:', error)
+    } finally {
+      setGeneratingRoutine(false)
     }
   }
 
-  const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      toast({
-        title: "Error",
-        description: "No se pudo cerrar sesión",
-        variant: "destructive",
-      })
+  const handleSessionComplete = async (feedback: any) => {
+    try {
+      // Guardar feedback
+      if (currentRoutine) {
+        await routineService.saveSessionFeedback('session-id', feedback)
+      }
+      
+      // Actualizar ICA
+      const icaResult = await routineService.calculateICA()
+      setIcaData(icaResult)
+      
+      // Recargar historial
+      const history = await routineService.getTrainingHistory(5)
+      setTrainingHistory(history)
+      
+      setShowFeedback(false)
+      setCurrentRoutine(null)
+    } catch (error) {
+      console.error('Error completing session:', error)
     }
+  }
+
+  const handleSessionSkip = () => {
+    setCurrentRoutine(null)
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Cargando tu entrenamiento...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando dashboard...</p>
         </div>
-      </div>
-    )
-  }
-
-  if (!userProfile) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Error</CardTitle>
-            <CardDescription>
-              No se pudo cargar tu perfil. Por favor, recarga la página.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => window.location.reload()} className="w-full">
-              Recargar
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-bold">Bodyweight Training</h1>
-            <div className="text-sm text-muted-foreground">
-              Hola, {userProfile.email}
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="text-sm">
-              ICA: {trainingPlan?.ica_score?.toFixed(1) || 'N/A'}
-            </div>
-            <Button variant="outline" onClick={handleSignOut}>
-              Cerrar Sesión
-            </Button>
-          </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Bienvenido de vuelta, {userProfile?.email}
+          </p>
         </div>
-      </header>
+        <Button onClick={generateNewRoutine} disabled={generatingRoutine}>
+          {generatingRoutine ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              Generando...
+            </>
+          ) : (
+            <>
+              <Zap className="h-4 w-4 mr-2" />
+              Generar Rutina
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* ICA Score Card */}
+      {icaData && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Índice de Capacidad Actual (ICA)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-primary">
+                  {icaData.ica_score?.toFixed(1) || 'N/A'}
+                </div>
+                <p className="text-sm text-muted-foreground">ICA Score</p>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-green-600">
+                  {Math.round((icaData.adherence_rate || 0) * 100)}%
+                </div>
+                <p className="text-sm text-muted-foreground">Adherencia</p>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-blue-600">
+                  {icaData.recent_performance?.sessions_last_4_weeks || 0}
+                </div>
+                <p className="text-sm text-muted-foreground">Sesiones (4 semanas)</p>
+              </div>
+            </div>
+            
+            {icaData.recommendations && icaData.recommendations.length > 0 && (
+              <div className="mt-4 p-4 bg-muted rounded-lg">
+                <h4 className="font-semibold mb-2">Recomendaciones:</h4>
+                <ul className="space-y-1">
+                  {icaData.recommendations.map((rec: string, index: number) => (
+                    <li key={index} className="text-sm">• {rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Main Content */}
-      <main className="container py-6">
-        <Tabs defaultValue="current" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="current">Sesión Actual</TabsTrigger>
-            <TabsTrigger value="history">Historial</TabsTrigger>
-            <TabsTrigger value="progress">Progreso</TabsTrigger>
-            <TabsTrigger value="wellness">Bienestar</TabsTrigger>
-          </TabsList>
+      <Tabs defaultValue="routine" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="routine">Rutina de Hoy</TabsTrigger>
+          <TabsTrigger value="history">Historial</TabsTrigger>
+          <TabsTrigger value="progress">Progreso</TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="current" className="space-y-6">
-            <CurrentSession 
-              userProfile={userProfile}
-              trainingPlan={trainingPlan}
-              onSessionComplete={loadUserData}
+        <TabsContent value="routine" className="space-y-4">
+          {showFeedback ? (
+            <SessionFeedback 
+              onFeedbackSubmit={handleSessionComplete}
+              onSkip={() => setShowFeedback(false)}
             />
-          </TabsContent>
+          ) : currentRoutine ? (
+            <DailyRoutine 
+              session={currentRoutine}
+              onSessionComplete={handleSessionComplete}
+              onSessionSkip={handleSessionSkip}
+            />
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center space-y-4">
+                  <div className="text-6xl">🏋️</div>
+                  <h3 className="text-xl font-semibold">No hay rutina para hoy</h3>
+                  <p className="text-muted-foreground">
+                    Genera una nueva rutina personalizada basada en tu progreso
+                  </p>
+                  <Button onClick={generateNewRoutine} disabled={generatingRoutine}>
+                    {generatingRoutine ? 'Generando...' : 'Generar Rutina'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
-          <TabsContent value="history" className="space-y-6">
-            <TrainingHistory userProfile={userProfile} />
-          </TabsContent>
+        <TabsContent value="history" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Historial de Entrenamientos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {trainingHistory.length > 0 ? (
+                <div className="space-y-4">
+                  {trainingHistory.map((session) => (
+                    <div key={session.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <p className="font-medium">
+                          {new Date(session.session_date).toLocaleDateString()}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Duración: {session.total_duration} min | 
+                          ICA: {session.ica_score?.toFixed(1) || 'N/A'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">
+                          {session.session_exercise_blocks?.length || 0} ejercicios
+                        </Badge>
+                        {session.completion_rate && (
+                          <Badge variant={session.completion_rate > 0.8 ? "default" : "destructive"}>
+                            {Math.round(session.completion_rate * 100)}% completado
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No hay entrenamientos registrados</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <TabsContent value="progress" className="space-y-6">
-            <ProgressCharts userProfile={userProfile} />
-          </TabsContent>
+        <TabsContent value="progress" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Progreso Semanal
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span>Adherencia</span>
+                      <span>{Math.round((icaData?.adherence_rate || 0) * 100)}%</span>
+                    </div>
+                    <Progress value={(icaData?.adherence_rate || 0) * 100} />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span>Fitness Level</span>
+                      <span>{userProfile?.current_fitness_score?.toFixed(1) || 'N/A'}/10</span>
+                    </div>
+                    <Progress value={(userProfile?.current_fitness_score || 0) * 10} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-          <TabsContent value="wellness" className="space-y-6">
-            <WellnessLog userProfile={userProfile} />
-          </TabsContent>
-        </Tabs>
-      </main>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Métricas Recientes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Promedio RPE</span>
+                    <span className="font-medium">
+                      {icaData?.recent_performance?.avg_rpe?.toFixed(1) || 'N/A'}/10
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Tasa de Completación</span>
+                    <span className="font-medium">
+                      {Math.round((icaData?.recent_performance?.avg_completion_rate || 0) * 100)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Último Entrenamiento</span>
+                    <span className="font-medium">
+                      {icaData?.user_state?.last_training_date ? 
+                        new Date(icaData.user_state.last_training_date).toLocaleDateString() : 
+                        'N/A'
+                      }
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
