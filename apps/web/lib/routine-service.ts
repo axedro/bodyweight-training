@@ -108,12 +108,9 @@ export class RoutineService {
       const { data, error } = await this.supabase
         .from('training_sessions')
         .update({
-          rpe_reported: feedback.rpe_reported,
-          completion_rate: feedback.completion_rate,
-          technical_quality: feedback.technical_quality,
-          enjoyment_level: feedback.enjoyment_level,
-          recovery_feeling: feedback.recovery_feeling,
-          session_type: 'completed',
+          status: 'completed',
+          actual_intensity: feedback.rpe_reported / 10,
+          notes: `RPE: ${feedback.rpe_reported}/10, Completado: ${Math.round(feedback.completion_rate * 100)}%, Técnica: ${feedback.technical_quality}/5`,
           updated_at: new Date().toISOString()
         })
         .eq('id', sessionId)
@@ -140,12 +137,12 @@ export class RoutineService {
         .from('training_sessions')
         .select(`
           *,
-          session_exercise_blocks (
+          session_exercises (
             *,
-            exercise:exercises (*)
+            exercises (*)
           )
         `)
-        .eq('session_type', 'completed')
+        .eq('status', 'completed')
         .order('session_date', { ascending: false })
         .limit(limit)
 
@@ -171,13 +168,13 @@ export class RoutineService {
         .from('training_sessions')
         .select(`
           *,
-          session_exercise_blocks (
+          session_exercises (
             *,
-            exercise:exercises (*)
+            exercises (*)
           )
         `)
         .eq('session_date', today)
-        .eq('session_type', 'planned')
+        .eq('status', 'planned')
         .single()
 
       if (error && error.code !== 'PGRST116') {
@@ -188,33 +185,50 @@ export class RoutineService {
         return null
       }
 
-      // Convertir a formato GeneratedSession
-      const warmUp = data.session_exercise_blocks
-        ?.filter((block: any) => block.block_type === 'warmup')
-        .map((block: any) => block.exercise) || []
-
-      const mainWork = data.session_exercise_blocks
-        ?.filter((block: any) => block.block_type !== 'warmup' && block.block_type !== 'cooldown')
-        .map((block: any) => ({
-          exercise: block.exercise,
-          sets: block.sets_completed || 3,
-          reps: block.reps_completed || 10,
-          rest_seconds: block.rest_seconds || 60,
-          difficulty_rating: block.difficulty_rating || block.exercise.difficulty_level
+      // Convertir a formato GeneratedSession compatible con daily-routine.tsx
+      const warmUp = data.session_exercises
+        ?.filter((ex: any) => ex.block_type === 'warmup')
+        .map((ex: any) => ({
+          exercise: ex.exercises,
+          sets: ex.sets_planned || 1,
+          reps: ex.reps_planned || 10,
+          rest_seconds: ex.rest_seconds || 30,
+          progression_level: 1,
+          target_rpe: 3
         })) || []
 
-      const coolDown = data.session_exercise_blocks
-        ?.filter((block: any) => block.block_type === 'cooldown')
-        .map((block: any) => block.exercise) || []
+      const exerciseBlocks = data.session_exercises
+        ?.filter((ex: any) => ex.block_type === 'main')
+        .map((ex: any) => ({
+          exercise: ex.exercises,
+          sets: ex.sets_planned || 3,
+          reps: ex.reps_planned || 10,
+          rest_seconds: ex.rest_seconds || 60,
+          progression_level: ex.exercises?.progression_level || 1,
+          target_rpe: ex.target_rpe || 7
+        })) || []
+
+      const coolDown = data.session_exercises
+        ?.filter((ex: any) => ex.block_type === 'cooldown')
+        .map((ex: any) => ({
+          exercise: ex.exercises,
+          sets: ex.sets_planned || 1,
+          reps: ex.reps_planned || 30,
+          rest_seconds: ex.rest_seconds || 0,
+          progression_level: 1,
+          target_rpe: 2
+        })) || []
 
       return {
+        id: data.id,
+        date: data.session_date,
+        duration_minutes: data.total_duration || 30,
+        intensity: data.intensity_target || 0.7,
         warm_up: warmUp,
-        main_work: mainWork,
+        exercise_blocks: exerciseBlocks,
         cool_down: coolDown,
-        total_volume_load: data.total_volume_load || 0,
-        estimated_duration: data.total_duration || 30,
-        intensity_target: data.intensity_target || 0.7,
-        recovery_requirement: data.recovery_requirement || 24
+        focus_areas: ['strength', 'endurance'],
+        notes: data.notes || 'Rutina personalizada'
       }
     } catch (error) {
       console.error('Error fetching current routine:', error)
@@ -230,12 +244,11 @@ export class RoutineService {
       const { data, error } = await this.supabase
         .from('training_sessions')
         .insert({
-          session_date: new Date().toISOString().split('T')[0],
-          session_type: 'planned',
-          total_duration: session.estimated_duration,
-          total_volume_load: session.total_volume_load,
-          intensity_target: session.intensity_target,
-          recovery_requirement: session.recovery_requirement
+          session_date: session.date || new Date().toISOString().split('T')[0],
+          status: 'planned',
+          planned_duration: session.duration_minutes,
+          intensity_target: session.intensity,
+          notes: session.notes
         })
         .select()
         .single()
@@ -244,34 +257,41 @@ export class RoutineService {
         throw error
       }
 
-      // Crear bloques de ejercicios
+      // Crear bloques de ejercicios con la estructura correcta
       const exerciseBlocks = [
-        ...session.warm_up.map((exercise, index) => ({
+        ...session.warm_up.map((block, index) => ({
           session_id: data.id,
-          exercise_id: exercise.id,
+          exercise_id: block.exercise.id,
           block_order: index + 1,
-          block_type: 'warmup'
+          block_type: 'warmup',
+          sets_planned: block.sets,
+          reps_planned: block.reps,
+          rest_seconds: block.rest_seconds
         })),
-        ...session.main_work.map((block, index) => ({
+        ...session.exercise_blocks.map((block, index) => ({
           session_id: data.id,
           exercise_id: block.exercise.id,
           block_order: session.warm_up.length + index + 1,
-          block_type: block.exercise.category,
-          sets_completed: block.sets,
-          reps_completed: block.reps,
-          rest_seconds: block.rest_seconds
+          block_type: 'main',
+          sets_planned: block.sets,
+          reps_planned: block.reps,
+          rest_seconds: block.rest_seconds,
+          target_rpe: block.target_rpe
         })),
-        ...session.cool_down.map((exercise, index) => ({
+        ...session.cool_down.map((block, index) => ({
           session_id: data.id,
-          exercise_id: exercise.id,
-          block_order: session.warm_up.length + session.main_work.length + index + 1,
-          block_type: 'cooldown'
+          exercise_id: block.exercise.id,
+          block_order: session.warm_up.length + session.exercise_blocks.length + index + 1,
+          block_type: 'cooldown',
+          sets_planned: block.sets,
+          reps_planned: block.reps,
+          rest_seconds: block.rest_seconds
         }))
       ]
 
       if (exerciseBlocks.length > 0) {
         const { error: blocksError } = await this.supabase
-          .from('session_exercise_blocks')
+          .from('session_exercises')
           .insert(exerciseBlocks)
 
         if (blocksError) {
