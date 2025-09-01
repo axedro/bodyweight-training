@@ -162,6 +162,10 @@ export interface UserState {
   
   // Progresión actual
   current_progressions: UserExerciseProgression[];
+  
+  // Preferencias de usuario
+  preferred_session_duration: number; // minutos
+  preferred_intensity: number; // 0.5-1.0
 }
 
 export interface ExerciseProgression {

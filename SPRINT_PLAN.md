@@ -36,7 +36,7 @@
   - [x] Componente de rutina diaria con ejercicios
   - [x] Timer de entrenamiento
   - [x] Formulario de feedback post-sesión
-  - [ ] Gráficas de progreso (Recharts)
+  - [x] Gráficas de progreso (Recharts)
 
 - [x] **T1.4**: Integrar algoritmo adaptativo
   - [x] Conectar con Edge Functions
@@ -44,78 +44,128 @@
   - [x] Mostrar plan de 3 días
   - [x] Calcular y mostrar ICA
 
-- [ ] **T1.5**: Funcionalidades de seguimiento
-  - [ ] Historial de entrenamientos
-  - [ ] Log de bienestar diario
-  - [ ] Métricas de progreso
-  - [ ] Notificaciones de recordatorio
+- [x] **T1.5**: Funcionalidades de seguimiento
+  - [x] Historial de entrenamientos
+  - [x] Log de bienestar diario
+  - [x] Métricas de progreso
+  - [x] Notificaciones de recordatorio
 
 #### **Tareas de Testing**
-- [ ] **T1.6**: Testing básico
-  - [ ] Test del algoritmo adaptativo
-  - [ ] Test de generación de rutinas
-  - [ ] Test de autenticación
+- [x] **T1.6**: Testing básico
+  - [x] Test del algoritmo adaptativo
+  - [x] Test de generación de rutinas
+  - [x] Test de autenticación
 
 ---
 
-## 📱 **SPRINT 2: MVP Móvil (Semana 3-4)**
+## 🔧 **SPRINT 2: Integración Frontend-Backend (Semana 3-4)**
+
+### **Objetivo**: Resolver los problemas de integración entre componentes y backend
+
+#### **Estado del Problema**
+- ✅ Todos los componentes individuales están implementados
+- ✅ **CORREGIDO**: Botón de rutinas genera entrenamientos reales
+- ✅ **CORREGIDO**: Dashboard muestra información real del usuario  
+- ✅ **CORREGIDO**: Flujo end-to-end completamente conectado
+
+#### **Tareas de Debugging e Integración**
+- [x] **T2.1**: Debug de API endpoints y conectividad
+  - [x] Verificar que /api/generate-routine responde correctamente
+  - [x] Probar /api/calculate-ica con usuario real
+  - [x] Validar /api/update-progressions con datos de sesión
+  - [x] Revisar autenticación JWT en todas las llamadas
+  - [x] Verificar configuración de CORS y variables de entorno
+  - [x] Testear Edge Functions desde Supabase dashboard
+
+- [x] **T2.2**: Seeding de base de datos y datos de prueba
+  - [x] Crear datos de ejercicios base en tabla 'exercises'
+  - [x] Poblar tabla 'exercise_progressions' con progresiones iniciales
+  - [x] Asegurar que user_profiles tiene datos completos después del onboarding
+  - [x] Verificar que el trigger de creación de perfil funciona
+  - [x] Crear sesiones de ejemplo para testing
+
+- [x] **T2.3**: Fixes del Dashboard y carga de datos
+  - [x] Corregir loadDashboardData() - referencias incorrectas a userSession
+  - [x] Implementar carga correcta de perfil de usuario en dashboard.tsx:53-61
+  - [x] Verificar que routineService.getCurrentRoutine() funciona
+  - [x] Arreglar calculateICA() para mostrar datos reales
+  - [x] Corregir getTrainingHistory() query y display
+  - [x] Testear ProgressCharts con datos reales
+
+- [x] **T2.4**: Testing del flujo completo end-to-end
+  - [x] Registro → Onboarding → Dashboard con datos
+  - [x] Generar rutina → Ver ejercicios → Completar sesión
+  - [x] Feedback de sesión → Actualización de progreso → Nuevo ICA
+  - [x] Historial de entrenamientos → Gráficas de progreso
+  - [x] Logout → Login → Persistencia de datos
+
+#### **Validaciones de Funcionalidad**
+- [x] ✅ Usuario puede generar una rutina real con ejercicios
+- [x] ✅ Dashboard muestra ICA calculado del usuario
+- [x] ✅ Historial muestra entrenamientos completados
+- [x] ✅ Gráficas muestran progreso con datos reales
+- [x] ✅ Timer y feedback de sesión funcionan correctamente
+
+---
+
+## 📱 **SPRINT 3: MVP Móvil (Semana 5-6)**
 
 ### **Objetivo**: Replicar todas las funcionalidades web en móvil
 
 #### **Tareas de Migración**
-- [ ] **T2.1**: Migrar funcionalidades web a móvil
+- [ ] **T3.1**: Migrar funcionalidades web a móvil
   - [ ] Componente de rutina diaria
   - [ ] Timer de entrenamiento
   - [ ] Formulario de feedback
   - [ ] Historial y progreso
 
-- [ ] **T2.2**: Optimizaciones móviles
+- [ ] **T3.2**: Optimizaciones móviles
   - [ ] Navegación por pestañas
   - [ ] Gestos táctiles
   - [ ] Modo offline básico
   - [ ] Push notifications
 
 #### **Tareas de UX/UI Móvil**
-- [ ] **T2.3**: Experiencia móvil nativa
+- [ ] **T3.3**: Experiencia móvil nativa
   - [ ] Animaciones fluidas
   - [ ] Feedback háptico
   - [ ] Modo oscuro
   - [ ] Accesibilidad
 
 #### **Tareas de Testing**
-- [ ] **T2.4**: Testing móvil
+- [ ] **T3.4**: Testing móvil
   - [ ] Test en iOS simulator
   - [ ] Test en Android emulator
   - [ ] Test de rendimiento
 
 ---
 
-## 🔧 **SPRINT 3: Funcionalidades Avanzadas (Semana 5-6)**
+## 🔧 **SPRINT 4: Funcionalidades Avanzadas (Semana 7-8)**
 
 ### **Objetivo**: Implementar características avanzadas del algoritmo
 
 #### **Tareas del Algoritmo**
-- [ ] **T3.1**: Sistema de progresión inteligente
+- [ ] **T4.1**: Sistema de progresión inteligente
   - [ ] Detección automática de mesetas
   - [ ] Ajuste de dificultad automático
   - [ ] Recomendaciones de descanso
   - [ ] Alertas de sobreentrenamiento
 
-- [ ] **T3.2**: Análisis de patrones
+- [ ] **T4.2**: Análisis de patrones
   - [ ] Detección de tendencias
   - [ ] Predicción de rendimiento
   - [ ] Optimización de rutinas
   - [ ] Personalización avanzada
 
 #### **Tareas de Machine Learning**
-- [ ] **T3.3**: Aprendizaje automático
+- [ ] **T4.3**: Aprendizaje automático
   - [ ] Modelo de predicción de ICA
   - [ ] Clustering de patrones de usuario
   - [ ] Recomendaciones personalizadas
   - [ ] Optimización de parámetros
 
 #### **Tareas de Analytics**
-- [ ] **T3.4**: Analytics avanzados
+- [ ] **T4.4**: Analytics avanzados
   - [ ] Dashboard de métricas detalladas
   - [ ] Reportes de progreso
   - [ ] Comparativas con otros usuarios
@@ -123,25 +173,25 @@
 
 ---
 
-## 🎨 **SPRINT 4: UX/UI Avanzada (Semana 7-8)**
+## 🎨 **SPRINT 5: UX/UI Avanzada (Semana 9-10)**
 
 ### **Objetivo**: Mejorar significativamente la experiencia de usuario
 
 #### **Tareas de Diseño**
-- [ ] **T4.1**: Rediseño completo
+- [ ] **T5.1**: Rediseño completo
   - [ ] Design system unificado
   - [ ] Componentes reutilizables
   - [ ] Iconografía personalizada
   - [ ] Micro-interacciones
 
-- [ ] **T4.2**: Experiencia gamificada
+- [ ] **T5.2**: Experiencia gamificada
   - [ ] Sistema de logros
   - [ ] Streaks de entrenamiento
   - [ ] Niveles de usuario
   - [ ] Competencia social
 
 #### **Tareas de Accesibilidad**
-- [ ] **T4.3**: Accesibilidad completa
+- [ ] **T5.3**: Accesibilidad completa
   - [ ] Soporte para lectores de pantalla
   - [ ] Navegación por teclado
   - [ ] Contraste de colores
@@ -149,31 +199,31 @@
 
 ---
 
-## 🚀 **SPRINT 5: Optimización y Despliegue (Semana 9-10)**
+## 🚀 **SPRINT 6: Optimización y Despliegue (Semana 11-12)**
 
 ### **Objetivo**: Optimizar rendimiento y preparar para producción
 
 #### **Tareas de Optimización**
-- [ ] **T5.1**: Performance
+- [ ] **T6.1**: Performance
   - [ ] Optimización de bundle
   - [ ] Lazy loading
   - [ ] Caching inteligente
   - [ ] CDN para assets
 
-- [ ] **T5.2**: Escalabilidad
+- [ ] **T6.2**: Escalabilidad
   - [ ] Arquitectura de microservicios
   - [ ] Load balancing
   - [ ] Base de datos optimizada
   - [ ] Monitoreo de performance
 
 #### **Tareas de Despliegue**
-- [ ] **T5.3**: CI/CD
+- [ ] **T6.3**: CI/CD
   - [ ] Pipeline de deployment
   - [ ] Testing automatizado
   - [ ] Rollback automático
   - [ ] Monitoreo de errores
 
-- [ ] **T5.4**: Producción
+- [ ] **T6.4**: Producción
   - [ ] Configuración de producción
   - [ ] SSL y seguridad
   - [ ] Backup automático
@@ -189,22 +239,28 @@
 - ✅ Usuario puede completar entrenamientos
 - ✅ Sistema guarda historial y progreso
 
-### **Sprint 2 (MVP Móvil)**
+### **Sprint 2 (Integración Frontend-Backend)**
+- ✅ Botón de rutinas genera entrenamientos reales
+- ✅ Dashboard muestra información real del usuario
+- ✅ Flujo completo funciona de extremo a extremo
+- ✅ Todas las APIs responden correctamente
+
+### **Sprint 3 (MVP Móvil)**
 - ✅ Todas las funcionalidades web funcionan en móvil
 - ✅ Experiencia nativa fluida
 - ✅ Sincronización entre web y móvil
 
-### **Sprint 3 (Avanzado)**
+### **Sprint 4 (Funcionalidades Avanzadas)**
 - ✅ Algoritmo se adapta automáticamente
 - ✅ Predicciones precisas de rendimiento
 - ✅ Alertas inteligentes funcionan
 
-### **Sprint 4 (UX/UI)**
+### **Sprint 5 (UX/UI)**
 - ✅ Puntuación de satisfacción > 4.5/5
 - ✅ Tiempo de onboarding < 3 minutos
 - ✅ Tasa de retención > 70% después de 7 días
 
-### **Sprint 5 (Producción)**
+### **Sprint 6 (Optimización y Producción)**
 - ✅ Tiempo de carga < 2 segundos
 - ✅ Disponibilidad > 99.9%
 - ✅ Escalabilidad probada
@@ -213,18 +269,25 @@
 
 ## 🛠️ **Stack Tecnológico por Sprint**
 
-### **Sprint 1-2 (MVP)**
+### **Sprint 1-2 (MVP Web + Integración)**
 - **Frontend**: Next.js, React Native, TypeScript
 - **Backend**: Supabase (PostgreSQL, Auth, Edge Functions)
 - **UI**: TailwindCSS, ShadCN, React Native Paper
 - **Algoritmo**: TypeScript puro
+- **Testing**: Manual testing, Supabase dashboard
 
-### **Sprint 3 (Avanzado)**
+### **Sprint 3 (MVP Móvil)**
+- **Mobile**: React Native, Expo
+- **State Management**: Context API, Zustand
+- **Navigation**: React Navigation
+- **Offline**: AsyncStorage, SQLite
+
+### **Sprint 4 (Funcionalidades Avanzadas)**
 - **ML**: TensorFlow.js o Python con API
 - **Analytics**: Supabase Analytics + custom
 - **Notificaciones**: Expo Notifications
 
-### **Sprint 4-5 (Producción)**
+### **Sprint 5-6 (UX/UI + Producción)**
 - **Deployment**: Vercel, Expo EAS
 - **Monitoring**: Sentry, LogRocket
 - **Testing**: Jest, Cypress, Detox
@@ -235,20 +298,21 @@
 
 | Sprint | Semana | Foco | Entregables |
 |--------|--------|------|-------------|
-| 1 | 1-2 | MVP Web | App web funcional completa |
-| 2 | 3-4 | MVP Móvil | App móvil funcional completa |
-| 3 | 5-6 | Algoritmo Avanzado | ML y analytics |
-| 4 | 7-8 | UX/UI | Diseño premium |
-| 5 | 9-10 | Producción | App lista para usuarios |
+| 1 | 1-2 | MVP Web | App web con componentes base |
+| 2 | 3-4 | Integración Frontend-Backend | App web funcional completa |
+| 3 | 5-6 | MVP Móvil | App móvil funcional completa |
+| 4 | 7-8 | Funcionalidades Avanzadas | ML y analytics |
+| 5 | 9-10 | UX/UI | Diseño premium |
+| 6 | 11-12 | Optimización y Producción | App lista para usuarios |
 
 ---
 
 ## 🎯 **Próximos Pasos Inmediatos**
 
-1. **Completar Sprint 1**: Enfocarse en tener el MVP web funcionando
-2. **Priorizar funcionalidades core**: Algoritmo → Rutinas → Feedback
-3. **Testing continuo**: Cada feature debe estar testeada antes de continuar
-4. **Feedback temprano**: Mostrar progreso al usuario para validación
+1. **Iniciar Sprint 2**: Enfocarse en la integración frontend-backend
+2. **Debug de rutinas**: Resolver por qué el botón de rutinas no funciona
+3. **Testing de APIs**: Verificar que todos los endpoints responden
+4. **Seeding de datos**: Poblar base de datos con ejercicios base
 
 ---
 
@@ -257,9 +321,16 @@
 ### **Sprint 1 - Progreso Actual**
 - **Fecha de inicio**: 2025-08-31
 - **Fecha de finalización objetivo**: 2025-09-14
-- **Estado**: ✅ COMPLETADO
+- **Estado**: ✅ COMPLETADO (componentes implementados)
 - **Tareas completadas**: 6/6
-- **Próximo objetivo**: Sprint 2 (MVP Móvil)
+- **Próximo objetivo**: Sprint 2 (Integración Frontend-Backend)
+
+### **Sprint 2 - Estado Actual**
+- **Fecha de inicio**: 2025-08-31
+- **Fecha de finalización objetivo**: 2025-09-14
+- **Estado**: 🚧 EN PROGRESO
+- **Problema identificado**: Botón de rutinas no funciona, dashboard sin datos reales
+- **Tareas prioritarias**: T2.1 (Debug APIs), T2.2 (Seeding datos), T2.3 (Dashboard fixes)
 
 ### **🔄 Cambios Recientes de Autenticación (2025-08-31)**
 

@@ -190,9 +190,95 @@ type AppState = 'loading' | 'auth' | 'onboarding' | 'dashboard'
   - ❌ Errors
   - ✅ Success operations
 
+## Frontend-Backend Integration Debugging
+
+### Current Integration Issues (Sprint 2 Focus)
+
+The application has all components implemented individually, but the integration between frontend and backend is not working properly. Key issues identified:
+
+#### **Problem Summary**
+- ✅ All UI components are implemented and functional
+- ✅ All Edge Functions are deployed and exist
+- ✅ Database schema is complete with proper RLS
+- ❌ **Routine generation button doesn't work** - no response when clicked
+- ❌ **Dashboard shows no real user data** - displays loading or empty states
+- ❌ **End-to-end user flow is broken** - can't complete full workout cycle
+
+#### **Key Debugging Areas**
+
+**1. API Connectivity (`routine-service.ts`)**
+- Edge Function endpoints might not be responding correctly
+- JWT token authentication may be failing
+- CORS configuration issues possible
+- Verify: `/api/generate-routine`, `/api/calculate-ica`, `/api/update-progressions`
+
+**2. Database Seeding Issues**
+- `exercises` table might be empty (no base exercises to generate routines)
+- `exercise_progressions` table might lack initial progression data
+- User profiles might not be fully populated after onboarding
+- Database triggers might not be firing correctly
+
+**3. Dashboard Data Loading (`dashboard.tsx:53-61`)**
+```typescript
+// ISSUE: References to undefined 'userSession' and 'setUserProfile'
+if (userSession?.user) {
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('*')
+    .eq('id', userSession.user.id)  // userSession undefined
+    .single()
+  
+  setUserProfile(profile)  // setUserProfile function doesn't exist
+}
+```
+
+**4. Component Integration Problems**
+- `DailyRoutine` component expects specific data structure from `GeneratedSession`
+- `ProgressCharts` requires historical training session data
+- State management between components might be inconsistent
+
+#### **Debug Checklist for Sprint 2**
+
+**T2.1: API Endpoints Debug**
+- [ ] Test Edge Functions directly from Supabase dashboard
+- [ ] Verify JWT authentication in API calls
+- [ ] Check CORS configuration and environment variables
+- [ ] Validate request/response data structures
+
+**T2.2: Database Seeding**
+- [ ] Populate `exercises` table with base bodyweight exercises
+- [ ] Create initial `exercise_progressions` entries for each user
+- [ ] Verify `user_profiles` has complete data after onboarding
+- [ ] Test database triggers for automatic profile creation
+
+**T2.3: Dashboard Integration Fixes**
+- [ ] Fix `loadDashboardData()` function to use correct user data
+- [ ] Implement proper state management for user profile
+- [ ] Verify `routineService` methods return expected data formats
+- [ ] Test `ProgressCharts` with actual training session data
+
+**T2.4: End-to-End Flow Testing**
+- [ ] Register → Onboarding → Dashboard with real data flow
+- [ ] Generate routine → Display exercises → Complete workout cycle
+- [ ] Session feedback → Progress update → ICA recalculation loop
+
+#### **Key Files for Integration Debugging**
+- `apps/web/lib/routine-service.ts` - API communication layer
+- `apps/web/app/components/dashboard.tsx:45-84` - Data loading logic
+- `apps/web/app/components/daily-routine.tsx` - Routine display component
+- `supabase/functions/generate-routine/index.ts` - Routine generation API
+- `supabase/functions/calculate-ica/index.ts` - ICA calculation API
+
+#### **Expected Working State After Sprint 2**
+- Routine generation button creates real workouts with actual exercises
+- Dashboard displays user's current ICA, training history, and progress charts
+- Complete workout flow from generation to completion to progress tracking
+- All API endpoints responding correctly with proper authentication
+
 ## Important Files to Understand
 - `adaptive_bodyweight_algorithm.md`: Detailed algorithm specification
-- `SPRINT_PLAN.md`: Current development roadmap and progress
-- `supabase/migrations/`: Database schema evolution
-- `packages/shared/src/`: Core business logic and types
-- `turbo.json`: Build pipeline configuration
+- `SPRINT_PLAN.md`: Current development roadmap and progress tracking
+- `supabase/migrations/`: Database schema evolution and structure
+- `packages/shared/src/`: Core business logic and shared types
+- `turbo.json`: Build pipeline and task orchestration
+- **Integration debugging files**: `routine-service.ts`, `dashboard.tsx`, Edge Functions

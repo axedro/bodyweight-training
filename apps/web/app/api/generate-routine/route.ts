@@ -17,21 +17,21 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Verificar autenticación
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    // Verificar autenticación y obtener JWT
+    const { data: { session }, error: authError } = await supabase.auth.getSession()
     
-    if (authError || !user) {
+    if (authError || !session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { daysToGenerate = 1 } = await request.json()
 
-    // Llamar a la Edge Function
+    // Llamar a la Edge Function con el JWT del usuario
     const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-routine`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        'Authorization': `Bearer ${session.access_token}`,
         'X-Client-Info': 'supabase-js/2.0.0'
       },
       body: JSON.stringify({ daysToGenerate })

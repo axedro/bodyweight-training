@@ -16,15 +16,11 @@ import {
   Play,
   BarChart3
 } from 'lucide-react'
-import { createBrowserClient } from '@supabase/ssr'
 import { routineService } from '../../lib/routine-service'
 import { GeneratedSession, TrainingPlan } from '@bodyweight/shared'
 import { DailyRoutine } from './daily-routine'
 import { SessionFeedback } from './session-feedback'
 import { ProgressCharts } from './progress-charts'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 interface DashboardProps {
   user: any
@@ -40,8 +36,6 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
   const [showFeedback, setShowFeedback] = useState(false)
   const [trainingHistory, setTrainingHistory] = useState<any[]>([])
 
-  const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
-
   useEffect(() => {
     loadDashboardData()
   }, [])
@@ -50,16 +44,7 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
     try {
       setLoading(true)
 
-      if (userSession?.user) {
-        // Cargar perfil del usuario
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', userSession.user.id)
-          .single()
-        
-        setUserProfile(profile)
-
+      if (user) {
         // Cargar rutina actual
         const routine = await routineService.getCurrentRoutine()
         setCurrentRoutine(routine)
@@ -89,8 +74,8 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
       
       const trainingPlan = await routineService.generateDailyRoutine(1)
       
-      if (trainingPlan.sessions.length > 0) {
-        const newSession = trainingPlan.sessions[0]
+      if (trainingPlan.current_session) {
+        const newSession = trainingPlan.current_session
         setCurrentRoutine(newSession)
         
         // Guardar la sesión en la base de datos
