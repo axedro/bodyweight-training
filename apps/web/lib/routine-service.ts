@@ -165,74 +165,27 @@ export class RoutineService {
    */
   async getCurrentRoutine(): Promise<GeneratedSession | null> {
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const { data: { session } } = await this.supabase.auth.getSession()
       
-      const { data, error } = await this.supabase
-        .from('training_sessions')
-        .select(`
-          *,
-          session_exercises (
-            *,
-            exercises (*)
-          )
-        `)
-        .eq('session_date', today)
-        .eq('status', 'planned')
-        .single()
-
-      if (error && error.code !== 'PGRST116') {
-        throw error
+      if (!session) {
+        throw new Error('No authenticated session')
       }
 
-      if (!data) {
-        return null
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-current-routine`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js/2.0.0'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get current routine')
       }
 
-      // Convertir a formato GeneratedSession compatible con daily-routine.tsx
-      const warmUp = data.session_exercises
-        ?.filter((ex: any) => ex.block_type === 'warmup')
-        .map((ex: any) => ({
-          exercise: ex.exercises,
-          sets: ex.sets_planned || 1,
-          reps: ex.reps_planned || 10,
-          rest_seconds: ex.rest_seconds || 30,
-          progression_level: 1,
-          target_rpe: 3
-        })) || []
-
-      const exerciseBlocks = data.session_exercises
-        ?.filter((ex: any) => ex.block_type === 'main')
-        .map((ex: any) => ({
-          exercise: ex.exercises,
-          sets: ex.sets_planned || 3,
-          reps: ex.reps_planned || 10,
-          rest_seconds: ex.rest_seconds || 60,
-          progression_level: ex.exercises?.progression_level || 1,
-          target_rpe: ex.target_rpe || 7
-        })) || []
-
-      const coolDown = data.session_exercises
-        ?.filter((ex: any) => ex.block_type === 'cooldown')
-        .map((ex: any) => ({
-          exercise: ex.exercises,
-          sets: ex.sets_planned || 1,
-          reps: ex.reps_planned || 30,
-          rest_seconds: ex.rest_seconds || 0,
-          progression_level: 1,
-          target_rpe: 2
-        })) || []
-
-      return {
-        id: data.id,
-        date: data.session_date,
-        duration_minutes: data.total_duration || 30,
-        intensity: data.intensity_target || 0.7,
-        warm_up: warmUp,
-        exercise_blocks: exerciseBlocks,
-        cool_down: coolDown,
-        focus_areas: ['strength', 'endurance'],
-        notes: data.notes || 'Rutina personalizada'
-      }
+      const result = await response.json()
+      return result.routine
     } catch (error) {
       console.error('Error fetching current routine:', error)
       throw error
