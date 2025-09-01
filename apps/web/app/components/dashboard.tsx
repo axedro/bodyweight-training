@@ -91,8 +91,8 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
   const handleSessionComplete = async (feedback: any) => {
     try {
       // Guardar feedback
-      if (currentRoutine) {
-        await routineService.saveSessionFeedback('session-id', feedback)
+      if (currentRoutine && currentRoutine.id) {
+        await routineService.saveSessionFeedback(currentRoutine.id, feedback)
       }
       
       // Actualizar ICA

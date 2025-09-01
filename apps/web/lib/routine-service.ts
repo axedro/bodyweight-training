@@ -108,23 +108,28 @@ export class RoutineService {
    */
   async saveSessionFeedback(sessionId: string, feedback: SessionFeedback): Promise<any> {
     try {
-      const { data, error } = await this.supabase
-        .from('training_sessions')
-        .update({
-          status: 'completed',
-          actual_intensity: feedback.rpe_reported / 10,
-          notes: `RPE: ${feedback.rpe_reported}/10, Completado: ${Math.round(feedback.completion_rate * 100)}%, Técnica: ${feedback.technical_quality}/5`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', sessionId)
-        .select()
-        .single()
-
-      if (error) {
-        throw error
+      const { data: { session } } = await this.supabase.auth.getSession()
+      
+      if (!session) {
+        throw new Error('No authenticated session')
       }
 
-      return data
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/save-session-feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js/2.0.0'
+        },
+        body: JSON.stringify({ sessionId, feedback })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save session feedback')
+      }
+
+      const result = await response.json()
+      return result.session
     } catch (error) {
       console.error('Error saving session feedback:', error)
       throw error
