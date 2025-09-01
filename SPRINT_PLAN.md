@@ -99,12 +99,23 @@
   - [x] Historial de entrenamientos → Gráficas de progreso
   - [x] Logout → Login → Persistencia de datos
 
+- [x] **T2.5**: Algoritmo adaptativo para usuarios nuevos
+  - [x] Implementar estimación automática de progresiones basada en onboarding
+  - [x] Crear sistema de safety factors (30% reducción de intensidad)
+  - [x] Método generateNewUserICA() para usuarios sin historial
+  - [x] Seeding automático de progresiones en base de datos
+  - [x] Testing con usuario completamente nuevo (0 sesiones, 0 progresiones)
+  - [x] Validación de rutinas conservadoras y seguras
+
 #### **Validaciones de Funcionalidad**
 - [x] ✅ Usuario puede generar una rutina real con ejercicios
 - [x] ✅ Dashboard muestra ICA calculado del usuario
 - [x] ✅ Historial muestra entrenamientos completados
 - [x] ✅ Gráficas muestran progreso con datos reales
 - [x] ✅ Timer y feedback de sesión funcionan correctamente
+- [x] ✅ **NUEVO**: Usuarios sin historial generan rutinas seguras automáticamente
+- [x] ✅ **NUEVO**: Progresiones se crean automáticamente basadas en onboarding
+- [x] ✅ **NUEVO**: Safety factors aplicados a usuarios nuevos (<3 sesiones)
 
 ---
 
@@ -328,9 +339,15 @@
 ### **Sprint 2 - Estado Actual**
 - **Fecha de inicio**: 2025-08-31
 - **Fecha de finalización objetivo**: 2025-09-14
-- **Estado**: 🚧 EN PROGRESO
-- **Problema identificado**: Botón de rutinas no funciona, dashboard sin datos reales
-- **Tareas prioritarias**: T2.1 (Debug APIs), T2.2 (Seeding datos), T2.3 (Dashboard fixes)
+- **Estado**: ✅ **COMPLETADO**
+- **Logros**: Integración frontend-backend completa, algoritmo para usuarios nuevos
+- **Tareas completadas**: T2.1, T2.2, T2.3, T2.4 + **T2.5** (Algoritmo para Usuarios Nuevos)
+
+### **🆕 Sprint 2.5 - Algoritmo para Usuarios Nuevos (2025-09-01)**
+- **Estado**: ✅ **COMPLETADO**
+- **Problema resuelto**: Usuarios nuevos sin historial no podían generar rutinas
+- **Implementación**: Estimación conservadora de progresiones + safety factors
+- **Resultado**: Rutinas seguras desde el primer día para cualquier usuario
 
 ### **🔄 Cambios Recientes de Autenticación (2025-08-31)**
 

@@ -124,6 +124,39 @@ export class AdaptiveTrainingAlgorithm {
     intermediate: 1.5,
     advanced: 2.0
   }
+  
+  private readonly NEW_USER_SAFETY_FACTOR = 0.7 // Reduce intensity by 30% for new users
+  private readonly NEW_USER_THRESHOLD_SESSIONS = 3 // Consider "new" until 3 completed sessions
+
+  /**
+   * Estimate initial progression levels for new users based on onboarding data
+   */
+  estimateInitialProgressions(profile: UserProfile): { [category: string]: number } {
+    const baseLevel = this.FITNESS_LEVELS[profile.fitness_level]
+    const experienceBonus = Math.min(2, profile.experience_years * 0.5) // Max +2 levels from experience
+    const ageAdjustment = profile.age ? Math.max(0, (30 - profile.age) * 0.05) : 0 // Slight bonus for younger users
+    
+    // Conservative estimation - start lower than expected
+    const estimatedLevel = Math.max(1, Math.floor((baseLevel + experienceBonus + ageAdjustment) * 0.8))
+    
+    // Category-specific adjustments
+    return {
+      push: Math.max(1, estimatedLevel - 1), // Push-ups are typically harder
+      pull: Math.max(1, estimatedLevel - 1), // Pull-ups are typically hardest
+      squat: estimatedLevel, // Most people can squat decently
+      hinge: Math.max(1, estimatedLevel - 1), // Hip hinges need practice
+      core: estimatedLevel, // Core work is accessible
+      locomotion: estimatedLevel + 1 // Walking/movement is easiest
+    }
+  }
+
+  /**
+   * Check if user is considered "new" and needs safety adjustments
+   */
+  isNewUser(recentSessions: TrainingSession[]): boolean {
+    const completedSessions = recentSessions.filter(s => s.status === 'completed')
+    return completedSessions.length < this.NEW_USER_THRESHOLD_SESSIONS
+  }
 
   calculateICA(data: {
     profile: UserProfile
@@ -132,6 +165,14 @@ export class AdaptiveTrainingAlgorithm {
     wellnessLogs: any[]
   }): ICAData {
     const { profile, recentSessions } = data
+    
+    // Check if user is new and needs special handling
+    const isNew = this.isNewUser(recentSessions)
+    
+    // For brand new users (0 sessions), use conservative baseline ICA
+    if (recentSessions.length === 0) {
+      return this.generateNewUserICA(profile)
+    }
     
     // Calculate adherence rate (last 4 weeks)
     const fourWeeksAgo = new Date()
@@ -201,8 +242,11 @@ export class AdaptiveTrainingAlgorithm {
     if (avg_completion_rate < 0.7) recommendations.push("Ajusta la dificultad de los ejercicios")
     if (days_since_last > 7) recommendations.push("Retoma tu rutina de entrenamiento gradualmente")
 
+    // Apply safety factor for new users
+    const final_ica = isNew ? ica_score * this.NEW_USER_SAFETY_FACTOR : ica_score
+
     return {
-      ica_score: Math.round(ica_score * 100) / 100,
+      ica_score: Math.round(final_ica * 100) / 100,
       adherence_rate,
       recovery_factor,
       progression_velocity,
@@ -218,6 +262,54 @@ export class AdaptiveTrainingAlgorithm {
         fatigue_level: profile.fatigue_level || 3,
         last_training_date: last_session?.session_date,
         days_since_last_training: days_since_last
+      },
+      recommendations
+    }
+  }
+
+  /**
+   * Generate conservative baseline ICA for brand new users
+   */
+  generateNewUserICA(profile: UserProfile): ICAData {
+    const fitness_multiplier = this.FITNESS_LEVELS[profile.fitness_level] || 1.0
+    const base_ica = 0.8 * fitness_multiplier // Conservative base
+    const experience_bonus = Math.min(0.3, profile.experience_years * 0.1)
+    
+    // Age adjustment (younger users might handle more)
+    const age_factor = profile.age ? Math.max(0.8, 1.2 - (profile.age - 25) * 0.01) : 1.0
+    
+    const ica_score = Math.max(0.1, Math.min(2.0, (base_ica + experience_bonus) * age_factor))
+
+    const recommendations = [
+      "¡Bienvenido! Empezaremos con rutinas suaves para evaluar tu nivel",
+      "Es importante completar los primeros entrenamientos para personalizar tu programa",
+      "Escucha a tu cuerpo y ajusta la intensidad según te sientas"
+    ]
+
+    // Add specific recommendations based on fitness level
+    if (profile.fitness_level === 'beginner') {
+      recommendations.push("Enfócate en la técnica correcta antes que en la intensidad")
+    } else if (profile.fitness_level === 'advanced') {
+      recommendations.push("Aunque seas avanzado, empezaremos conservadoramente para evaluar tus patrones de movimiento")
+    }
+
+    return {
+      ica_score: Math.round(ica_score * 100) / 100,
+      adherence_rate: 1.0, // Assume full adherence for new users
+      recovery_factor: 0.8, // Assume good recovery initially
+      progression_velocity: 1.0, // Neutral starting point
+      detraining_factor: 1.0, // No detraining for new users
+      recent_performance: {
+        sessions_last_4_weeks: 0,
+        avg_rpe: 5.0,
+        avg_completion_rate: 1.0,
+        avg_technical_quality: 3.5
+      },
+      user_state: {
+        current_fitness_level: this.FITNESS_LEVELS[profile.fitness_level] * 2,
+        fatigue_level: profile.fatigue_level || 2,
+        last_training_date: undefined,
+        days_since_last_training: undefined
       },
       recommendations
     }

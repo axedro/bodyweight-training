@@ -70,6 +70,13 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .eq('is_active', true)
 
+    // If user has no progressions, create initial ones based on their profile
+    let userProgressions = progressions || []
+    if (!progressions || progressions.length === 0) {
+      console.log('Creating initial progressions for new user:', user.id)
+      userProgressions = await createInitialProgressions(supabase, user.id, profile)
+    }
+
     // Get recent training history
     const { data: recentSessions } = await supabase
       .from('training_sessions')
@@ -93,7 +100,7 @@ serve(async (req) => {
     // Calculate current ICA
     const icaData = algorithm.calculateICA({
       profile,
-      progressions: progressions || [],
+      progressions: userProgressions,
       recentSessions: recentSessions || [],
       wellnessLogs: [] // TODO: Add wellness logs if needed
     })
@@ -101,7 +108,7 @@ serve(async (req) => {
     // Generate training plan
     const trainingPlan = algorithm.generateTrainingPlan({
       profile,
-      progressions: progressions || [],
+      progressions: userProgressions,
       recentSessions: recentSessions || [],
       icaData,
       daysToGenerate
@@ -133,3 +140,77 @@ serve(async (req) => {
     )
   }
 })
+
+/**
+ * Create initial progressions for a new user based on their profile
+ */
+async function createInitialProgressions(supabase: any, userId: string, profile: any) {
+  try {
+    // Initialize the algorithm to get estimated progression levels
+    const algorithm = new AdaptiveTrainingAlgorithm()
+    const estimatedLevels = algorithm.estimateInitialProgressions(profile)
+    
+    // Get base exercises for each category at appropriate progression levels
+    const { data: exercises } = await supabase
+      .from('exercises')
+      .select('*')
+      .in('category', Object.keys(estimatedLevels))
+      .order('category', { ascending: true })
+      .order('progression_level', { ascending: true })
+
+    if (!exercises || exercises.length === 0) {
+      console.warn('No exercises found for creating initial progressions')
+      return []
+    }
+
+    // Create progressions for each exercise category
+    const progressionsToCreate = []
+    
+    for (const [category, estimatedLevel] of Object.entries(estimatedLevels)) {
+      // Find the best exercise for this category at the estimated level
+      const categoryExercises = exercises.filter(ex => ex.category === category)
+      const bestExercise = categoryExercises.find(ex => ex.progression_level === estimatedLevel) ||
+                          categoryExercises.find(ex => ex.progression_level === 1) || // Fallback to level 1
+                          categoryExercises[0] // Fallback to first exercise
+
+      if (bestExercise) {
+        progressionsToCreate.push({
+          user_id: userId,
+          exercise_id: bestExercise.id,
+          current_level: estimatedLevel,
+          consecutive_completions: 0,
+          is_active: true
+        })
+      }
+    }
+
+    // Insert the progressions into the database
+    const { data: createdProgressions, error } = await supabase
+      .from('user_exercise_progressions')
+      .insert(progressionsToCreate)
+      .select(`
+        *,
+        exercises (
+          id,
+          name,
+          category,
+          difficulty_level,
+          progression_level,
+          muscle_groups,
+          instructions
+        )
+      `)
+
+    if (error) {
+      console.error('Error creating initial progressions:', error)
+      return []
+    }
+
+    console.log(`Created ${createdProgressions?.length || 0} initial progressions for user ${userId}`)
+    return createdProgressions || []
+
+  } catch (error) {
+    console.error('Error in createInitialProgressions:', error)
+    return []
+  }
+}
