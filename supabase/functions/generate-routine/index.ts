@@ -118,8 +118,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         trainingPlan,
-        sessions: trainingPlan.sessions,
-        ica_score: icaData.ica_score
+        ica_score: trainingPlan.ica_score
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -164,20 +163,20 @@ async function createInitialProgressions(supabase: any, userId: string, profile:
     }
 
     // Create progressions for each exercise category
-    const progressionsToCreate = []
+    const progressionsToCreate: any[] = []
     
     for (const [category, estimatedLevel] of Object.entries(estimatedLevels)) {
       // Find the best exercise for this category at the estimated level
-      const categoryExercises = exercises.filter(ex => ex.category === category)
-      const bestExercise = categoryExercises.find(ex => ex.progression_level === estimatedLevel) ||
-                          categoryExercises.find(ex => ex.progression_level === 1) || // Fallback to level 1
+      const categoryExercises = exercises.filter((ex: any) => ex.category === category)
+      const bestExercise = categoryExercises.find((ex: any) => ex.progression_level === estimatedLevel) ||
+                          categoryExercises.find((ex: any) => ex.progression_level === 1) || // Fallback to level 1
                           categoryExercises[0] // Fallback to first exercise
 
       if (bestExercise) {
         progressionsToCreate.push({
           user_id: userId,
           exercise_id: bestExercise.id,
-          current_level: estimatedLevel,
+          current_level: estimatedLevel as number,
           consecutive_completions: 0,
           is_active: true
         })

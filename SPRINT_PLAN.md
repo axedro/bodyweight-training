@@ -1,7 +1,27 @@
 
 # 📋 **Plan de Sprints - Bodyweight Training App**
 
-## 🎯 **Estado Actual (COMPLETADO)**
+## ⚠️ **SPRINT 2.6: ARQUITECTURA UNIFICADA - EN PROGRESO**
+
+### **🔧 LIMPIEZA ARQUITECTURAL CRÍTICA**
+
+**Problema Detectado**: Implementaciones duplicadas causando conflictos
+- ❌ Next.js API Routes (proxy innecesario)
+- ❌ Edge Function Algorithm (implementación incorrecta)
+- ❌ Shared Package Algorithm (correcto pero no usado)
+
+**Solución**: **Solo Edge Functions** (preparado para móvil)
+
+#### **T2.6 Tareas de Unificación**:
+- [ ] **T2.6.1**: Eliminar Next.js API Routes redundantes
+- [ ] **T2.6.2**: Copiar algoritmo correcto a Edge Functions  
+- [ ] **T2.6.3**: Actualizar frontend para llamar directamente Edge Functions
+- [ ] **T2.6.4**: Validar funcionamiento end-to-end
+- [ ] **T2.6.5**: Limpiar código obsoleto (shared package algorithm)
+
+---
+
+## 🎯 **Estado Previo (COMPLETADO)**
 
 ### ✅ **Infraestructura Base**
 - [x] Monorepo configurado con Turbo

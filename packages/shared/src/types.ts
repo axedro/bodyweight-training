@@ -185,21 +185,24 @@ export interface SessionFeedback {
 }
 
 export interface GeneratedSession {
-  warm_up: Exercise[];
-  main_work: ExerciseBlock[];
-  cool_down: Exercise[];
-  
-  total_volume_load: number;
-  estimated_duration: number;
-  intensity_target: number; // % esfuerzo percibido
-  recovery_requirement: number; // horas hasta próxima sesión
+  id?: string;
+  date?: string;
+  duration_minutes: number;
+  intensity: number;
+  warm_up: ExerciseBlock[];
+  exercise_blocks: ExerciseBlock[];
+  cool_down: ExerciseBlock[];
+  focus_areas: string[];
+  notes: string;
 }
 
 export interface ExerciseBlock {
   exercise: Exercise;
   sets: number;
   reps: number;
-  rest_time: number; // seconds
+  rest_seconds: number;
+  progression_level: number;
+  target_rpe: number;
   notes?: string;
 }
 

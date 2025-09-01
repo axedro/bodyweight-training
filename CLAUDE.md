@@ -185,15 +185,59 @@ Generate Conservative Routine → Store Results → Ready for Feedback Loop
 - ✅ No dual logic or manual configuration required
 - ✅ Seamless progression tracking from first workout
 
+## Architectural Decision (Sprint 2.6 - Unification)
+
+### **PROBLEMA IDENTIFICADO**: Implementaciones Duplicadas
+
+Durante la integración se descubrió que existían **DOS algoritmos completamente separados**:
+
+1. **📦 Packages/Shared Algorithm** (`/packages/shared/src/algorithm.ts`)
+   - Algoritmo completo y corregido
+   - Usa ejercicios reales de la base de datos
+   - ❌ NO se usaba por las Edge Functions
+
+2. **🚀 Edge Function Algorithm** (`/supabase/functions/_shared/algorithm.ts`)
+   - Implementación diferente e incompleta
+   - Creaba ejercicios falsos con IDs inválidos (`"warmup-mobility"`)
+   - ✅ Era la que usaban las Edge Functions
+
+3. **🌐 Next.js API Routes** (`/apps/web/app/api/*/route.ts`)
+   - Proxy innecesario que llamaba a Edge Functions
+   - Añadía complejidad sin valor
+
+### **SOLUCIÓN ARQUITECTURAL**: Solo Edge Functions
+
+**Decisión**: Mantener únicamente **Supabase Edge Functions** como API layer único.
+
+**Justificación**:
+- ✅ **Multiplataforma**: Una API para web y móvil 
+- ✅ **Consistencia**: Mismo comportamiento en todas las plataformas
+- ✅ **Escalabilidad**: Supabase maneja el scaling automáticamente
+- ✅ **Autenticación**: JWT funciona igual para web/móvil
+- ✅ **Simplicidad**: Una sola fuente de verdad
+
+**Flujo Final Limpio**:
+```
+Web Frontend ─┐
+              ├─→ Supabase Edge Functions → Algoritmo Unificado
+Mobile App ───┘
+```
+
+### **Cambios Realizados**:
+- ❌ Eliminadas todas las Next.js API Routes (`/apps/web/app/api/*`)
+- ✅ Copiado algoritmo correcto a Edge Functions
+- ✅ Frontend llama directamente a Edge Functions
+- ✅ Algoritmo unificado usando ejercicios reales de la base de datos
+
 ## Development Guidelines
 
 ### Code Organization
-- **Shared Types**: All TypeScript interfaces in `packages/shared/src/types.ts`
-- **Algorithm Logic**: Core training algorithm in shared package
+- **Shared Types**: All TypeScript interfaces in `packages/shared/src/types.ts` 
+- **Algorithm Logic**: ⚠️ **SOLO en Edge Functions** `supabase/functions/_shared/algorithm.ts`
 - **UI Components**: 
   - Web: ShadCN components in `apps/web/app/components/ui/`
   - Mobile: React Native Paper components
-- **API Routes**: Supabase Edge Functions in `supabase/functions/`
+- **API Layer**: ⚠️ **SOLO Supabase Edge Functions** in `supabase/functions/`
 
 ### Environment Setup
 1. Supabase requires `.env.local` (web) and `.env` (mobile) with connection strings

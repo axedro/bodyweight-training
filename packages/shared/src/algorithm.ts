@@ -133,22 +133,20 @@ export class AdaptiveTrainingAlgorithm {
     const priority_patterns = this.identifyUnderworkedPatterns(last_3_sessions_patterns, required_patterns);
 
     const warm_up = this.selectWarmUpExercises(availableExercises);
-    const main_work = this.generateMainWorkBlocks(userState, availableExercises, priority_patterns, ica_score);
+    const exercise_blocks = this.generateMainWorkBlocks(userState, availableExercises, priority_patterns, ica_score);
     const cool_down = this.selectCoolDownExercises(availableExercises);
 
-    const total_volume_load = this.calculateTotalVolume(main_work);
-    const estimated_duration = this.calculateSessionDuration(warm_up, main_work, cool_down);
-    const intensity_target = this.calculateIntensityTarget(ica_score, userState);
-    const recovery_requirement = this.calculateRecoveryRequirement(ica_score, total_volume_load);
+    const duration_minutes = this.calculateSessionDuration(warm_up, exercise_blocks, cool_down);
+    const intensity = this.calculateIntensityTarget(ica_score, userState);
 
     return {
+      duration_minutes,
+      intensity,
       warm_up,
-      main_work,
+      exercise_blocks,
       cool_down,
-      total_volume_load,
-      estimated_duration,
-      intensity_target,
-      recovery_requirement
+      focus_areas: priority_patterns,
+      notes: `Generated for ICA ${ica_score.toFixed(2)}`
     };
   }
 
@@ -177,7 +175,9 @@ export class AdaptiveTrainingAlgorithm {
         exercise: selected_exercise,
         sets,
         reps,
-        rest_time: this.calculateRestTime(selected_exercise, sets, ica_score),
+        rest_seconds: this.calculateRestTime(selected_exercise, sets, ica_score),
+        progression_level: user_progression?.current_level || 1,
+        target_rpe: this.calculateTargetRPE(ica_score),
         notes: this.generateExerciseNotes(selected_exercise, user_progression)
       });
     }
@@ -188,30 +188,49 @@ export class AdaptiveTrainingAlgorithm {
   /**
    * Selecciona ejercicios de calentamiento
    */
-  private selectWarmUpExercises(availableExercises: Exercise[]): Exercise[] {
+  private selectWarmUpExercises(availableExercises: Exercise[]): ExerciseBlock[] {
+    // Select easy exercises suitable for warm-up from existing database
     const warm_up_exercises = availableExercises.filter(ex => 
-      ex.difficulty_level <= 2.5 && 
-      (ex.name.toLowerCase().includes('arm circles') || 
-       ex.name.toLowerCase().includes('hip circles') ||
-       ex.name.toLowerCase().includes('jumping jacks') ||
-       ex.name.toLowerCase().includes('high knees') ||
-       ex.name.toLowerCase().includes('mountain climbers'))
-    );
+      ex.difficulty_level <= 2.5 && ex.progression_level <= 2
+    ).sort((a, b) => a.difficulty_level - b.difficulty_level);
 
-    return warm_up_exercises.slice(0, 3); // Máximo 3 ejercicios de calentamiento
+    // If no suitable exercises found, use the easiest available exercises
+    const fallback_exercises = warm_up_exercises.length > 0 
+      ? warm_up_exercises 
+      : availableExercises.slice(0, 3);
+
+    return fallback_exercises.slice(0, 3).map(exercise => ({
+      exercise,
+      sets: 1,
+      reps: 8,
+      rest_seconds: 30,
+      progression_level: 1,
+      target_rpe: 3
+    }));
   }
 
   /**
    * Selecciona ejercicios de enfriamiento
    */
-  private selectCoolDownExercises(availableExercises: Exercise[]): Exercise[] {
+  private selectCoolDownExercises(availableExercises: Exercise[]): ExerciseBlock[] {
+    // Select low-intensity core exercises for cool-down
     const cool_down_exercises = availableExercises.filter(ex => 
-      ex.difficulty_level <= 2.0 && 
-      (ex.name.toLowerCase().includes('stretch') || 
-       ex.name.toLowerCase().includes('pose'))
-    );
+      ex.category === 'core' && ex.difficulty_level <= 3.0 && ex.progression_level <= 2
+    ).sort((a, b) => a.difficulty_level - b.difficulty_level);
 
-    return cool_down_exercises.slice(0, 3); // Máximo 3 ejercicios de enfriamiento
+    // If no suitable core exercises, use easiest available exercises
+    const fallback_exercises = cool_down_exercises.length > 0 
+      ? cool_down_exercises 
+      : availableExercises.filter(ex => ex.difficulty_level <= 2.5).slice(0, 3);
+
+    return fallback_exercises.slice(0, 3).map(exercise => ({
+      exercise,
+      sets: 1,
+      reps: 20,
+      rest_seconds: 0,
+      progression_level: 1,
+      target_rpe: 2
+    }));
   }
 
   /**
@@ -298,6 +317,16 @@ export class AdaptiveTrainingAlgorithm {
     const ica_adjustment = ica_score > 8.5 ? 1.2 : ica_score < 4.0 ? 0.7 : 1.0;
     
     return Math.min(1.0, base_intensity * ica_adjustment);
+  }
+
+  /**
+   * Calcula el RPE objetivo basado en el ICA
+   */
+  private calculateTargetRPE(ica_score: number): number {
+    if (ica_score >= 8.5) return 8; // ICA alto - intensidad moderada-alta
+    if (ica_score >= 6.5) return 7; // ICA medio - intensidad moderada
+    if (ica_score >= 4.0) return 6; // ICA bajo - intensidad baja-moderada
+    return 5; // ICA muy bajo - intensidad muy baja
   }
 
   /**
@@ -424,14 +453,14 @@ export class AdaptiveTrainingAlgorithm {
   }
 
   private calculateSessionDuration(
-    warmUp: Exercise[], 
+    warmUp: ExerciseBlock[], 
     mainWork: ExerciseBlock[], 
-    coolDown: Exercise[]
+    coolDown: ExerciseBlock[]
   ): number {
     const warmUpTime = warmUp.length * 2; // 2 min por ejercicio
     const mainWorkTime = mainWork.reduce((total, block) => {
       const exerciseTime = block.sets * 1.5; // 1.5 min por serie
-      const restTime = (block.sets - 1) * (block.rest_time / 60); // descanso entre series
+      const restTime = (block.sets - 1) * (block.rest_seconds / 60); // descanso entre series
       return total + exerciseTime + restTime;
     }, 0);
     const coolDownTime = coolDown.length * 1.5; // 1.5 min por ejercicio

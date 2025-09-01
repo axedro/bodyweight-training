@@ -18,11 +18,12 @@ export class RoutineService {
         throw new Error('No authenticated session')
       }
 
-      const response = await fetch('/api/generate-routine', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-routine`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js/2.0.0'
         },
         body: JSON.stringify({ daysToGenerate })
       })
@@ -50,11 +51,12 @@ export class RoutineService {
         throw new Error('No authenticated session')
       }
 
-      const response = await fetch('/api/update-progressions', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/update-progressions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js/2.0.0'
         },
         body: JSON.stringify({ sessionId, exerciseBlocks })
       })
@@ -81,11 +83,12 @@ export class RoutineService {
         throw new Error('No authenticated session')
       }
 
-      const response = await fetch('/api/calculate-ica', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/calculate-ica`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js/2.0.0'
         }
       })
 
@@ -241,9 +244,16 @@ export class RoutineService {
    */
   async createTrainingSession(session: GeneratedSession): Promise<any> {
     try {
+      // Get current user to ensure we include user_id for RLS
+      const { data: { user } } = await this.supabase.auth.getUser()
+      if (!user) {
+        throw new Error('User not authenticated')
+      }
+
       const { data, error } = await this.supabase
         .from('training_sessions')
         .insert({
+          user_id: user.id,
           session_date: session.date || new Date().toISOString().split('T')[0],
           status: 'planned',
           planned_duration: session.duration_minutes,
