@@ -76,10 +76,17 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
       
       if (trainingPlan.current_session) {
         const newSession = trainingPlan.current_session
-        setCurrentRoutine(newSession)
         
-        // Guardar la sesión en la base de datos
-        await routineService.createTrainingSession(newSession)
+        // Guardar la sesión en la base de datos y obtener el ID real
+        const createdSession = await routineService.createTrainingSession(newSession)
+        
+        // Actualizar la sesión con el ID real de la base de datos
+        const sessionWithRealId = {
+          ...newSession,
+          id: createdSession.id
+        }
+        
+        setCurrentRoutine(sessionWithRealId)
       }
     } catch (error) {
       console.error('Error generating routine:', error)
