@@ -137,11 +137,14 @@ serve(async (req) => {
       exercisePerformance: exercisePerformance || []
     })
 
+    // NUEVO: Enhance training plan with proper warm-up and cool-down exercises
+    const enhancedTrainingPlan = await algorithm.enhanceTrainingPlanWithWarmupCooldown(supabase, trainingPlan)
+
     return new Response(
       JSON.stringify({
         success: true,
-        trainingPlan,
-        ica_score: trainingPlan.ica_score
+        trainingPlan: enhancedTrainingPlan,
+        ica_score: enhancedTrainingPlan.ica_score
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

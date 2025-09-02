@@ -141,6 +141,8 @@ export interface ICAData {
 
 export class AdaptiveTrainingAlgorithm {
   private readonly EXERCISE_CATEGORIES = ['push', 'pull', 'squat', 'hinge', 'core', 'locomotion'] as const
+  private readonly WARMUP_CATEGORIES = ['warmup'] as const
+  private readonly COOLDOWN_CATEGORIES = ['cooldown'] as const
   private readonly FITNESS_LEVELS = {
     beginner: 1.0,
     intermediate: 1.5,
@@ -1195,5 +1197,207 @@ export class AdaptiveTrainingAlgorithm {
       focus_areas: rescueCategories,
       notes: `🆘 RUTINA DE RESCATE - Sesión corta y fácil para recuperar motivación (ICA: ${icaData.ica_score.toFixed(1)})`
     }
+  }
+
+  /**
+   * NUEVO: Selecciona ejercicios de calentamiento apropiados
+   */
+  private async selectWarmupExercises(supabase: any, duration_minutes: number = 5): Promise<ExerciseBlock[]> {
+    // Obtener ejercicios de calentamiento de la base de datos
+    const { data: warmupExercises } = await supabase
+      .from('exercises')
+      .select('*')
+      .eq('category', 'warmup')
+      .order('difficulty_level', { ascending: true })
+
+    if (!warmupExercises || warmupExercises.length === 0) {
+      // Fallback a ejercicios básicos si no hay ejercicios de calentamiento
+      return [{
+        exercise_id: 'warmup-basic',
+        exercise: {
+          name: 'Basic Warm-up',
+          instructions: 'Light movement to warm up the body',
+          muscle_groups: ['full body']
+        },
+        sets: 1,
+        reps: 1,
+        duration_seconds: duration_minutes * 60,
+        rest_seconds: 0
+      }]
+    }
+
+    // Seleccionar 3-4 ejercicios de calentamiento variados
+    const selectedWarmups = warmupExercises.slice(0, Math.min(4, Math.ceil(duration_minutes / 1.5)))
+    
+    return selectedWarmups.map(exercise => ({
+      exercise_id: exercise.id,
+      exercise: {
+        name: exercise.name,
+        instructions: exercise.instructions,
+        muscle_groups: exercise.muscle_groups
+      },
+      sets: 1,
+      reps: exercise.name.includes('Circles') || exercise.name.includes('Rolls') ? 10 : 15,
+      duration_seconds: exercise.target_duration_seconds || 30,
+      rest_seconds: 15
+    }))
+  }
+
+  /**
+   * NUEVO: Selecciona ejercicios de enfriamiento y estiramiento
+   */
+  private async selectCooldownExercises(supabase: any, duration_minutes: number = 5, focusAreas: string[] = []): Promise<ExerciseBlock[]> {
+    // Obtener ejercicios de enfriamiento de la base de datos
+    const { data: cooldownExercises } = await supabase
+      .from('exercises')
+      .select('*')
+      .eq('category', 'cooldown')
+      .order('name')
+
+    if (!cooldownExercises || cooldownExercises.length === 0) {
+      // Fallback a estiramientos básicos
+      return [{
+        exercise_id: 'cooldown-basic',
+        exercise: {
+          name: 'Basic Cool-down',
+          instructions: 'Gentle stretching and deep breathing',
+          muscle_groups: ['full body']
+        },
+        sets: 1,
+        reps: 1,
+        duration_seconds: duration_minutes * 60,
+        rest_seconds: 0
+      }]
+    }
+
+    // Priorizar estiramientos que trabajen los grupos musculares del entrenamiento
+    const prioritizedCooldowns = cooldownExercises.sort((a, b) => {
+      const aRelevance = a.muscle_groups?.some((mg: string) => focusAreas.includes(mg)) ? 1 : 0
+      const bRelevance = b.muscle_groups?.some((mg: string) => focusAreas.includes(mg)) ? 1 : 0
+      return bRelevance - aRelevance
+    })
+
+    // Seleccionar 4-5 ejercicios de enfriamiento
+    const selectedCooldowns = prioritizedCooldowns.slice(0, Math.min(5, Math.ceil(duration_minutes / 1)))
+    
+    return selectedCooldowns.map(exercise => ({
+      exercise_id: exercise.id,
+      exercise: {
+        name: exercise.name,
+        instructions: exercise.instructions,
+        muscle_groups: exercise.muscle_groups
+      },
+      sets: 1,
+      reps: 1,
+      duration_seconds: exercise.target_duration_seconds || 30,
+      rest_seconds: 10
+    }))
+  }
+
+  /**
+   * NUEVO: Encuentra alternativas para un ejercicio problemático
+   */
+  private async findAlternativeExercise(
+    supabase: any, 
+    originalExercise: UserExerciseProgression,
+    userFailureReason: 'equipment' | 'difficulty' | 'mobility' | 'injury' = 'difficulty'
+  ): Promise<UserExerciseProgression | null> {
+    // Buscar alternativas directas en la base de datos
+    const { data: alternatives } = await supabase
+      .from('exercises')
+      .select('*')
+      .eq('alternative_for', originalExercise.exercise_id)
+      .eq('is_alternative', true)
+      .order('difficulty_level', { ascending: true })
+
+    if (alternatives && alternatives.length > 0) {
+      // Seleccionar la alternativa más apropiada según el motivo
+      let selectedAlternative = alternatives[0] // Por defecto, la más fácil
+      
+      if (userFailureReason === 'equipment') {
+        // Buscar alternativa que no requiera equipo
+        const noEquipmentAlts = alternatives.filter(alt => !alt.equipment_needed)
+        if (noEquipmentAlts.length > 0) selectedAlternative = noEquipmentAlts[0]
+      }
+
+      // Crear progresión para la alternativa
+      return {
+        id: `alt-${originalExercise.id}`,
+        user_id: originalExercise.user_id,
+        exercise_id: selectedAlternative.id,
+        current_level: 1, // Empezar en nivel básico
+        max_reps: Math.max(5, originalExercise.max_reps * 0.7), // Reducir reps
+        is_active: true,
+        exercises: selectedAlternative,
+        notes: `Alternativa sugerida para ${originalExercise.exercises?.name}`
+      }
+    }
+
+    // Buscar alternativas por categoría y grupo muscular
+    if (originalExercise.exercises?.category) {
+      const { data: categoryAlternatives } = await supabase
+        .from('exercises')
+        .select('*')
+        .eq('category', originalExercise.exercises.category)
+        .lt('difficulty_level', originalExercise.exercises.difficulty_level || 5)
+        .order('difficulty_level', { ascending: false })
+        .limit(3)
+
+      if (categoryAlternatives && categoryAlternatives.length > 0) {
+        const alternative = categoryAlternatives[0]
+        return {
+          id: `cat-alt-${originalExercise.id}`,
+          user_id: originalExercise.user_id,
+          exercise_id: alternative.id,
+          current_level: 1,
+          max_reps: Math.max(5, originalExercise.max_reps * 0.8),
+          is_active: true,
+          exercises: alternative,
+          notes: `Alternativa de categoria para ${originalExercise.exercises?.name}`
+        }
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * NUEVO: Actualiza el plan de entrenamiento para incluir calentamiento y enfriamiento
+   */
+  async enhanceTrainingPlanWithWarmupCooldown(
+    supabase: any,
+    trainingPlan: TrainingPlan
+  ): Promise<TrainingPlan> {
+    // Mejorar sesión actual
+    if (trainingPlan.current_session) {
+      const focusAreas = trainingPlan.current_session.focus_areas || []
+      
+      // Si no tiene calentamiento o es muy básico, añadir uno mejor
+      if (!trainingPlan.current_session.warm_up || trainingPlan.current_session.warm_up.length < 2) {
+        trainingPlan.current_session.warm_up = await this.selectWarmupExercises(supabase, 5)
+      }
+
+      // Si no tiene enfriamiento o es muy básico, añadir uno mejor
+      if (!trainingPlan.current_session.cool_down || trainingPlan.current_session.cool_down.length < 2) {
+        trainingPlan.current_session.cool_down = await this.selectCooldownExercises(supabase, 5, focusAreas)
+      }
+    }
+
+    // Mejorar próximas sesiones
+    if (trainingPlan.next_sessions) {
+      for (const session of trainingPlan.next_sessions) {
+        const focusAreas = session.focus_areas || []
+        
+        if (!session.warm_up || session.warm_up.length < 2) {
+          session.warm_up = await this.selectWarmupExercises(supabase, 4)
+        }
+
+        if (!session.cool_down || session.cool_down.length < 2) {
+          session.cool_down = await this.selectCooldownExercises(supabase, 4, focusAreas)
+        }
+      }
+    }
+
+    return trainingPlan
   }
 }
