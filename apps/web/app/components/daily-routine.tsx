@@ -59,6 +59,11 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
     setRestTimeLeft(seconds)
   }
 
+  const skipRest = () => {
+    setIsResting(false)
+    setRestTimeLeft(0)
+  }
+
   const completeExercise = () => {
     setCompletedExercises(prev => new Set([...prev, currentExerciseIndex]))
     
@@ -231,9 +236,18 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
                     Descanso: {formatTime(restTimeLeft)}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground mb-3">
                   Prepárate para el siguiente ejercicio
                 </p>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={skipRest}
+                  className="flex items-center gap-2"
+                >
+                  <SkipForward className="h-4 w-4" />
+                  Saltar Descanso
+                </Button>
               </div>
             )}
 
