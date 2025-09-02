@@ -82,11 +82,30 @@ serve(async (req) => {
       allData: any[]
     }>()
 
-    performanceData?.forEach(perf => {
+    // If no performance data, return empty analysis
+    if (!performanceData || performanceData.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          muscle_group_analyses: [],
+          summary: {
+            total_muscle_groups_trained: 0,
+            most_trained: 'ninguno',
+            recommendations: ['Completa algunos entrenamientos para generar análisis de grupos musculares']
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    performanceData.forEach(perf => {
       const sessionDate = new Date(perf.session_date)
       const isCurrentWeek = sessionDate >= monday
       
-      perf.muscle_groups?.forEach((muscleGroup: string) => {
+      // Safely access muscle groups
+      const muscleGroups = perf.exercises?.muscle_groups || []
+      
+      muscleGroups.forEach((muscleGroup: string) => {
         if (!muscleGroupData.has(muscleGroup)) {
           muscleGroupData.set(muscleGroup, {
             currentWeek: [],

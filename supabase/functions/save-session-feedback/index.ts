@@ -82,8 +82,17 @@ serve(async (req) => {
       )
     }
 
-    // Save detailed exercise performance data if provided
+    // Update session exercises with completion data or create exercise performance records
+    const { data: sessionExercises } = await supabase
+      .from('session_exercises')
+      .select(`
+        *,
+        exercises (id, muscle_groups)
+      `)
+      .eq('session_id', sessionId)
+
     if (exercisePerformance && exercisePerformance.length > 0) {
+      // Update session exercises with detailed performance data
       const performanceData = exercisePerformance.map(perf => ({
         session_exercise_id: perf.sessionExerciseId,
         user_id: user.id,
@@ -110,6 +119,55 @@ serve(async (req) => {
       performanceData.forEach(perf => {
         perf.muscle_groups = exerciseMap.get(perf.exercise_id) || []
       })
+
+      const { error: performanceError } = await supabase
+        .from('exercise_performance')
+        .insert(performanceData)
+
+      if (performanceError) {
+        console.error('Error saving exercise performance:', performanceError)
+        // Continue anyway - session feedback is more critical
+      }
+    } else if (sessionExercises && sessionExercises.length > 0) {
+      // No detailed exercise data provided, update session exercises with estimated completion data
+      const estimatedCompletionRate = feedback.completion_rate || 0.8
+      const estimatedRpe = feedback.rpe_reported || 7
+      const estimatedTechnicalQuality = feedback.technical_quality || 4
+
+      // Update session exercises with completion data
+      const sessionExerciseUpdates = sessionExercises.map(sessionEx => ({
+        id: sessionEx.id,
+        sets_completed: Math.round(sessionEx.sets_planned * estimatedCompletionRate),
+        reps_completed: Math.round(sessionEx.reps_planned * estimatedCompletionRate),
+        rpe_reported: estimatedRpe,
+        technical_quality: estimatedTechnicalQuality,
+        notes: `Completado con ${Math.round(estimatedCompletionRate * 100)}% efectividad`
+      }))
+
+      // Update each session exercise
+      for (const update of sessionExerciseUpdates) {
+        await supabase
+          .from('session_exercises')
+          .update({
+            sets_completed: update.sets_completed,
+            reps_completed: update.reps_completed,
+            rpe_reported: update.rpe_reported,
+            technical_quality: update.technical_quality,
+            notes: update.notes
+          })
+          .eq('id', update.id)
+      }
+
+      // Create exercise performance records for muscle group analysis
+      const performanceData = sessionExercises.map(sessionEx => ({
+        user_id: user.id,
+        exercise_id: sessionEx.exercise_id,
+        session_date: sessionData.session_date,
+        sets_completed: Math.round(sessionEx.sets_planned * estimatedCompletionRate),
+        reps_completed: Math.round(sessionEx.reps_planned * estimatedCompletionRate),
+        rpe_reported: estimatedRpe,
+        muscle_groups: sessionEx.exercises?.muscle_groups || []
+      }))
 
       const { error: performanceError } = await supabase
         .from('exercise_performance')
