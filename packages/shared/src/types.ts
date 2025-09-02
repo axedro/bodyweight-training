@@ -1,5 +1,5 @@
 export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
-export type ExerciseCategory = 'push' | 'pull' | 'squat' | 'hinge' | 'core' | 'locomotion';
+export type ExerciseCategory = 'push' | 'pull' | 'squat' | 'hinge' | 'core' | 'locomotion' | 'warmup' | 'cooldown';
 export type SessionStatus = 'planned' | 'in_progress' | 'completed' | 'skipped';
 
 export interface UserProfile {
@@ -200,6 +200,7 @@ export interface ExerciseBlock {
   exercise: Exercise;
   sets: number;
   reps: number;
+  duration_seconds?: number; // For time-based exercises like planks, stretches
   rest_seconds: number;
   progression_level: number;
   target_rpe: number;
