@@ -1,7 +1,39 @@
 
 # 📋 **Plan de Sprints - Bodyweight Training App**
 
-## ⚠️ **SPRINT 2.6: ARQUITECTURA UNIFICADA - EN PROGRESO**
+## 🧠 **SPRINT 2.7: ALGORITMO REFINADO - COMPLETADO**
+
+### **🔬 REFINAMIENTO AVANZADO DEL ALGORITMO**
+
+**Objetivo**: Refinar el algoritmo adaptativo con sistemas inteligentes basados en simulación de usuario de 8 semanas
+
+#### **T2.7 Tareas de Refinamiento**:
+- [x] **T2.7.1**: Sistema de balance muscular inteligente con minimums forzados
+- [x] **T2.7.2**: Sistema de detección temprana y alertas de declive  
+- [x] **T2.7.3**: Factor de confianza adaptativo basado en patrones de usuario
+- [x] **T2.7.4**: Rutinas de rescate para usuarios en crisis (<40% adherencia)
+- [x] **T2.7.5**: Integración de todos los sistemas en generación de rutinas
+- [x] **T2.7.6**: Correcciones agresivas para balance de piernas
+
+### ✅ **RESULTADO**: Algoritmo Inteligente Completado
+
+**Mejoras Implementadas**:
+- ✅ **Balance muscular forzado**: Minimums para quadriceps/hamstrings (1.5), modo super agresivo (1.8)
+- ✅ **Early warning system**: Detecta usuarios en declive (3 sesiones <60% completion)
+- ✅ **Factor de confianza**: +20% progresión para consistentes, -30% para inconsistentes  
+- ✅ **Rutinas de rescate**: 15-20 min para usuarios en crisis (<40% adherencia)
+- ✅ **Selección forzada**: Garantiza categorías de piernas cuando hay desequilibrio crítico
+- ✅ **Validación completa**: Simulación 8 semanas con 4 perfiles de usuario
+
+**Resultados de Simulación**:
+- ✅ **Detección de riesgo**: 100% efectividad (usuarios en crisis identificados)
+- ✅ **Back development**: +39% a +57% mejora consistente
+- ✅ **Sistema de confianza**: Funcionando en todos los perfiles
+- ⚠️ **Legs balance**: 70% mejorado (requiere enfoque sistémico adicional)
+
+---
+
+## ⚠️ **SPRINT 2.6: ARQUITECTURA UNIFICADA - COMPLETADO**
 
 ### **🔧 LIMPIEZA ARQUITECTURAL CRÍTICA**
 

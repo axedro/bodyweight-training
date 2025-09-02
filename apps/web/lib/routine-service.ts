@@ -273,6 +273,37 @@ export class RoutineService {
       throw error
     }
   }
+
+  /**
+   * Analiza los grupos musculares del usuario
+   */
+  async analyzeMuscleGroups(): Promise<any> {
+    try {
+      const { data: { session } } = await this.supabase.auth.getSession()
+      
+      if (!session) {
+        throw new Error('No authenticated session')
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/analyze-muscle-groups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js/2.0.0'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze muscle groups')
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error analyzing muscle groups:', error)
+      throw error
+    }
+  }
 }
 
 export const routineService = new RoutineService()

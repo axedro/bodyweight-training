@@ -21,6 +21,7 @@ import { GeneratedSession, TrainingPlan } from '@bodyweight/shared'
 import { DailyRoutine } from './daily-routine'
 import { SessionFeedback } from './session-feedback'
 import { ProgressCharts } from './progress-charts'
+import { MuscleGroupAnalysis } from './muscle-group-analysis'
 
 interface DashboardProps {
   user: any
@@ -216,6 +217,7 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
           <TabsTrigger value="routine">Rutina de Hoy</TabsTrigger>
           <TabsTrigger value="history">Historial</TabsTrigger>
           <TabsTrigger value="progress">Progreso</TabsTrigger>
+          <TabsTrigger value="muscle-groups">Grupos Musculares</TabsTrigger>
         </TabsList>
 
         <TabsContent value="routine" className="space-y-4">
@@ -294,6 +296,10 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
 
         <TabsContent value="progress" className="space-y-4">
           <ProgressCharts userProfile={profile} />
+        </TabsContent>
+
+        <TabsContent value="muscle-groups" className="space-y-4">
+          <MuscleGroupAnalysis userProfile={profile} />
         </TabsContent>
       </Tabs>
     </div>

@@ -11,6 +11,16 @@ interface SaveFeedbackRequest {
     enjoyment_level?: number
     recovery_feeling?: number
   }
+  exercisePerformance?: {
+    sessionExerciseId: string
+    exerciseId: string
+    setNumber: number
+    repsCompleted: number
+    rpeReported?: number
+    techniqueQuality?: number
+    restTimeActual?: number
+    difficultyPerceived?: number
+  }[]
 }
 
 serve(async (req) => {
@@ -42,7 +52,7 @@ serve(async (req) => {
       )
     }
 
-    const { sessionId, feedback }: SaveFeedbackRequest = await req.json()
+    const { sessionId, feedback, exercisePerformance }: SaveFeedbackRequest = await req.json()
 
     if (!sessionId || !feedback) {
       return new Response(
@@ -52,7 +62,7 @@ serve(async (req) => {
     }
 
     // Update the training session with feedback
-    const { data, error } = await supabase
+    const { data: sessionData, error: sessionError } = await supabase
       .from('training_sessions')
       .update({
         status: 'completed',
@@ -65,15 +75,54 @@ serve(async (req) => {
       .select()
       .single()
 
-    if (error) {
+    if (sessionError) {
       return new Response(
-        JSON.stringify({ error: 'Failed to save feedback', details: error.message }),
+        JSON.stringify({ error: 'Failed to save feedback', details: sessionError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    // Save detailed exercise performance data if provided
+    if (exercisePerformance && exercisePerformance.length > 0) {
+      const performanceData = exercisePerformance.map(perf => ({
+        session_exercise_id: perf.sessionExerciseId,
+        user_id: user.id,
+        exercise_id: perf.exerciseId,
+        session_date: sessionData.session_date,
+        set_number: perf.setNumber,
+        reps_completed: perf.repsCompleted,
+        rpe_reported: perf.rpeReported,
+        technique_quality: perf.techniqueQuality,
+        rest_time_actual: perf.restTimeActual,
+        difficulty_perceived: perf.difficultyPerceived,
+        muscle_groups: [] // Will be populated from exercise data
+      }))
+
+      // Get muscle groups for each exercise
+      const exerciseIds = [...new Set(exercisePerformance.map(p => p.exerciseId))]
+      const { data: exerciseData } = await supabase
+        .from('exercises')
+        .select('id, muscle_groups')
+        .in('id', exerciseIds)
+
+      // Add muscle groups to performance data
+      const exerciseMap = new Map(exerciseData?.map(ex => [ex.id, ex.muscle_groups]) || [])
+      performanceData.forEach(perf => {
+        perf.muscle_groups = exerciseMap.get(perf.exercise_id) || []
+      })
+
+      const { error: performanceError } = await supabase
+        .from('exercise_performance')
+        .insert(performanceData)
+
+      if (performanceError) {
+        console.error('Error saving exercise performance:', performanceError)
+        // Continue anyway - session feedback is more critical
+      }
+    }
+
     return new Response(
-      JSON.stringify({ success: true, session: data }),
+      JSON.stringify({ success: true, session: sessionData }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

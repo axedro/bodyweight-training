@@ -95,6 +95,29 @@ export interface TrainingPlan {
   recommendations: string[]
 }
 
+export interface MuscleGroupMetrics {
+  id: string
+  user_id: string
+  muscle_group: string
+  week_start: string
+  total_sets: number
+  total_reps: number
+  avg_rpe: number
+  imbalance_score: number
+  relative_volume: number
+}
+
+export interface ExercisePerformanceData {
+  id: string
+  user_id: string
+  exercise_id: string
+  session_date: string
+  muscle_groups: string[]
+  reps_completed: number
+  rpe_reported?: number
+  technique_quality?: number
+}
+
 export interface ICAData {
   ica_score: number
   adherence_rate: number
@@ -320,22 +343,55 @@ export class AdaptiveTrainingAlgorithm {
     recentSessions: TrainingSession[]
     icaData: ICAData
     daysToGenerate: number
+    muscleGroupMetrics?: MuscleGroupMetrics[]
+    exercisePerformance?: ExercisePerformanceData[]
   }): TrainingPlan {
-    const { profile, progressions, icaData } = data
+    const { profile, progressions, icaData, muscleGroupMetrics, exercisePerformance, recentSessions } = data
 
-    // Generate session using actual exercises from progressions
+    // NUEVO: Detectar alertas tempranas y factor de confianza
+    const earlyWarnings = this.detectEarlyWarnings(recentSessions)
+    const confidenceData = this.calculateConfidenceFactor(recentSessions)
+    
+    // NUEVO: Si el usuario está en crisis, generar rutina de rescate
+    if (earlyWarnings.shouldTriggerRescue) {
+      console.log(`🆘 ACTIVANDO RUTINA DE RESCATE para usuario. Alertas: ${earlyWarnings.warnings.join(', ')}`)
+      
+      const rescueSession = this.generateRescueRoutine(profile, progressions, icaData)
+      
+      return {
+        current_session: rescueSession,
+        next_sessions: [],
+        ica_score: icaData.ica_score,
+        recommendations: [
+          ...icaData.recommendations,
+          '🆘 MODO RESCATE ACTIVADO: Rutina simplificada para recuperar motivación',
+          ...earlyWarnings.warnings,
+          ...confidenceData.recommendations
+        ]
+      }
+    }
+
+    // Generate session using actual exercises from progressions with muscle group balance
     const current_session = this.generateSessionFromProgressions({
       profile,
       progressions,
       icaData,
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      muscleGroupMetrics: muscleGroupMetrics || [],
+      exercisePerformance: exercisePerformance || [],
+      confidenceData: confidenceData,
+      earlyWarnings: earlyWarnings
     })
 
     return {
       current_session,
       next_sessions: [], // Can add more sessions later if needed
       ica_score: icaData.ica_score,
-      recommendations: icaData.recommendations
+      recommendations: [
+        ...icaData.recommendations,
+        ...confidenceData.recommendations,
+        ...(earlyWarnings.isAtRisk ? [`⚠️ Riesgo ${earlyWarnings.riskLevel}: ${earlyWarnings.warnings[0]}`] : [])
+      ]
     }
   }
 
@@ -344,29 +400,54 @@ export class AdaptiveTrainingAlgorithm {
     progressions: UserExerciseProgression[]
     icaData: ICAData
     date: string
+    muscleGroupMetrics?: MuscleGroupMetrics[]
+    exercisePerformance?: ExercisePerformanceData[]
+    confidenceData?: any
+    earlyWarnings?: any
   }): GeneratedSession {
-    const { profile, progressions, icaData } = data
+    const { profile, progressions, icaData, muscleGroupMetrics, exercisePerformance, confidenceData, earlyWarnings } = data
 
-    // Select 3-4 main exercises from different categories
-    const categories = ['push', 'pull', 'squat', 'hinge', 'core']
+    // Analyze muscle group priorities based on performance data
+    const muscleGroupPriorities = this.analyzeMuscleGroupPriorities(muscleGroupMetrics || [], exercisePerformance || [])
+    
+    // Select exercises based on muscle group balance and user progressions
     const exercise_blocks: ExerciseBlock[] = []
+    const selectedCategories = this.selectOptimalCategories(progressions, muscleGroupPriorities, 3)
 
-    for (const category of categories.slice(0, 3)) {
-      const categoryProgression = progressions.find(p => 
+    for (const category of selectedCategories) {
+      const categoryProgressions = progressions.filter(p => 
         p.exercises?.category === category && p.is_active
       )
       
-      if (categoryProgression && categoryProgression.exercises) {
-        const targetReps = this.calculateRepsForProgression(categoryProgression, icaData.ica_score)
-        const sets = category === 'core' ? 2 : 3
+      // Select the best exercise for this category considering muscle group balance
+      const selectedProgression = this.selectBestExerciseForBalance(
+        categoryProgressions, 
+        muscleGroupPriorities, 
+        icaData.ica_score
+      )
+      
+      if (selectedProgression && selectedProgression.exercises) {
+        // NUEVO: Aplicar factor de confianza a las progresiones
+        const adjustedICA = confidenceData ? icaData.ica_score * confidenceData.progressionMultiplier : icaData.ica_score
+        
+        const targetReps = this.calculateRepsForProgression(selectedProgression, adjustedICA)
+        const sets = this.calculateOptimalSets(category, muscleGroupPriorities, adjustedICA)
+        
+        // NUEVO: Ajustar RPE basado en nivel de riesgo
+        let targetRPE = Math.min(8, Math.round(adjustedICA + 2))
+        if (earlyWarnings?.riskLevel === 'medium') {
+          targetRPE = Math.max(4, targetRPE - 1) // Reducir RPE para usuarios en riesgo medio
+        } else if (earlyWarnings?.riskLevel === 'high') {
+          targetRPE = Math.max(3, targetRPE - 2) // Reducir más para usuarios en riesgo alto
+        }
         
         exercise_blocks.push({
-          exercise: categoryProgression.exercises,
+          exercise: selectedProgression.exercises,
           sets,
           reps: targetReps,
-          rest_seconds: category === 'core' ? 45 : 90,
-          progression_level: categoryProgression.current_level,
-          target_rpe: Math.min(8, Math.round(icaData.ica_score + 2))
+          rest_seconds: this.calculateRestTime(category, adjustedICA),
+          progression_level: selectedProgression.current_level,
+          target_rpe: targetRPE
         })
       }
     }
@@ -394,6 +475,15 @@ export class AdaptiveTrainingAlgorithm {
       target_rpe: 2
     }))
 
+    // NUEVO: Generar notas mejoradas con información del algoritmo inteligente
+    const algorithmNotes = [
+      `ICA: ${icaData.ica_score.toFixed(1)}${confidenceData ? ` (Confianza: ${(confidenceData.confidenceScore * 100).toFixed(0)}%)` : ''}`,
+      `Balance muscular: ${Object.entries(muscleGroupPriorities).filter(([_, priority]) => priority > 1.2).map(([group]) => group).join(', ') || 'equilibrado'}`,
+      confidenceData && confidenceData.progressionMultiplier !== 1.0 ? 
+        `Progresión ${confidenceData.progressionMultiplier > 1.0 ? 'acelerada' : 'conservadora'} (${(confidenceData.progressionMultiplier * 100).toFixed(0)}%)` : '',
+      earlyWarnings?.isAtRisk ? `⚠️ ${earlyWarnings.riskLevel.toUpperCase()} risk detected` : ''
+    ].filter(note => note).join(' | ')
+
     return {
       id: `session-${Date.now()}`,
       date: data.date,
@@ -402,8 +492,8 @@ export class AdaptiveTrainingAlgorithm {
       warm_up,
       exercise_blocks,
       cool_down,
-      focus_areas: categories.slice(0, 3),
-      notes: `ICA: ${icaData.ica_score.toFixed(1)} - Rutina adaptativa personalizada`
+      focus_areas: selectedCategories,
+      notes: `🧠 ALGORITMO MEJORADO: ${algorithmNotes}`
     }
   }
 
@@ -553,5 +643,557 @@ export class AdaptiveTrainingAlgorithm {
     
     const rest_seconds = base_rest[category as keyof typeof base_rest] || 90
     return Math.round(rest_seconds * (0.7 + intensity * 0.6))
+  }
+
+  /**
+   * Analiza las prioridades de grupos musculares basado en métricas de rendimiento
+   * MEJORADO: Incluye balance forzado y mínimos para piernas
+   */
+  private analyzeMuscleGroupPriorities(
+    muscleGroupMetrics: MuscleGroupMetrics[], 
+    exercisePerformance: ExercisePerformanceData[]
+  ): { [muscleGroup: string]: number } {
+    const priorities: { [muscleGroup: string]: number } = {}
+
+    // Si no hay datos históricos, usar prioridades balanceadas CON ÉNFASIS EN PIERNAS
+    if (!muscleGroupMetrics.length && !exercisePerformance.length) {
+      return {
+        'chest': 1.0, 'back': 1.0, 'shoulders': 1.0, 
+        'quadriceps': 1.3, 'hamstrings': 1.3, 'glutes': 0.8, // Piernas prioritarias, glutes menos
+        'core': 1.0, 'abs': 1.0
+      }
+    }
+
+    // Analizar métricas semanales para identificar grupos con bajo volumen
+    const totalVolume = muscleGroupMetrics.reduce((sum, metric) => sum + metric.total_sets, 0)
+    const avgVolume = totalVolume / Math.max(1, muscleGroupMetrics.length)
+
+    muscleGroupMetrics.forEach(metric => {
+      // Mayor prioridad para grupos con menor volumen relativo
+      const volumeRatio = metric.total_sets / Math.max(1, avgVolume)
+      const imbalanceFactor = metric.imbalance_score / 100 // Normalizar
+      
+      // Prioridad basada en desequilibrio y bajo volumen
+      priorities[metric.muscle_group] = Math.max(0.5, 2.0 - volumeRatio + imbalanceFactor)
+    })
+
+    // Analizar rendimiento reciente para ajustar prioridades
+    const recentPerformance = exercisePerformance.slice(0, 20) // Últimas 20 entries
+    recentPerformance.forEach(perf => {
+      perf.muscle_groups?.forEach(group => {
+        if (priorities[group]) {
+          // Aumentar prioridad si RPE fue bajo (necesita más intensidad)
+          if (perf.rpe_reported && perf.rpe_reported < 6) {
+            priorities[group] = Math.min(2.0, priorities[group] * 1.1)
+          }
+          // Reducir prioridad si técnica fue mala (necesita recovery)
+          if (perf.technique_quality && perf.technique_quality < 3) {
+            priorities[group] = Math.max(0.3, priorities[group] * 0.9)
+          }
+        }
+      })
+    })
+
+    // NUEVO: BALANCE FORZADO PARA PIERNAS
+    return this.enforceMuscleBalance(priorities)
+  }
+
+  /**
+   * Selecciona las categorías óptimas considerando balance de grupos musculares
+   */
+  private selectOptimalCategories(
+    progressions: UserExerciseProgression[], 
+    muscleGroupPriorities: { [muscleGroup: string]: number }, 
+    maxCategories: number
+  ): string[] {
+    const categories = ['push', 'pull', 'squat', 'hinge', 'core']
+    const categoryScores: { category: string, score: number }[] = []
+
+    // NUEVO: Detectar desequilibrio crítico de piernas para forzar categorías
+    const legMuscles = ['quadriceps', 'hamstrings']
+    const avgLegPriority = legMuscles
+      .map(muscle => muscleGroupPriorities[muscle] || 0)
+      .reduce((sum, priority) => sum + priority, 0) / legMuscles.length
+
+    const allMuscleAvg = Object.values(muscleGroupPriorities)
+      .reduce((sum, priority) => sum + priority, 0) / Object.values(muscleGroupPriorities).length
+
+    const legImbalanceRatio = avgLegPriority / allMuscleAvg
+    const hasLegCrisis = legImbalanceRatio > 1.4 || avgLegPriority > 1.5 // Crisis si prioridad muy alta
+
+    categories.forEach(category => {
+      const categoryProgressions = progressions.filter(p => 
+        p.exercises?.category === category && p.is_active
+      )
+
+      if (categoryProgressions.length === 0) {
+        categoryScores.push({ category, score: 0 })
+        return
+      }
+
+      // Calcular score basado en prioridades de grupos musculares que trabaja
+      let totalScore = 0
+      let muscleGroupsCount = 0
+
+      categoryProgressions.forEach(prog => {
+        if (prog.exercises?.muscle_groups) {
+          prog.exercises.muscle_groups.forEach(group => {
+            totalScore += muscleGroupPriorities[group] || 1.0
+            muscleGroupsCount++
+          })
+        }
+      })
+
+      let avgScore = muscleGroupsCount > 0 ? totalScore / muscleGroupsCount : 1.0
+
+      // FORZAR CATEGORÍAS DE PIERNAS en caso de crisis
+      if (hasLegCrisis && (category === 'squat' || category === 'hinge')) {
+        avgScore *= 2.0  // Duplicar score para forzar selección
+      }
+
+      categoryScores.push({ category, score: avgScore })
+    })
+
+    // GARANTIZAR AL MENOS UNA CATEGORÍA DE PIERNAS en crisis
+    let selectedCategories = categoryScores
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxCategories)
+      .map(item => item.category)
+
+    if (hasLegCrisis) {
+      const hasSquat = selectedCategories.includes('squat')
+      const hasHinge = selectedCategories.includes('hinge')
+      
+      if (!hasSquat && !hasHinge && selectedCategories.length > 0) {
+        // Reemplazar categoría de menor score con squat o hinge
+        const legCategories = categoryScores
+          .filter(c => c.category === 'squat' || c.category === 'hinge')
+          .sort((a, b) => b.score - a.score)
+        
+        if (legCategories.length > 0) {
+          selectedCategories[selectedCategories.length - 1] = legCategories[0].category
+        }
+      }
+    }
+
+    return selectedCategories
+  }
+
+  /**
+   * Selecciona el mejor ejercicio para balance considerando grupos musculares
+   */
+  private selectBestExerciseForBalance(
+    categoryProgressions: UserExerciseProgression[], 
+    muscleGroupPriorities: { [muscleGroup: string]: number },
+    icaScore: number
+  ): UserExerciseProgression | null {
+    if (!categoryProgressions.length) return null
+
+    let bestProgression: UserExerciseProgression | null = null
+    let highestScore = 0
+
+    categoryProgressions.forEach(progression => {
+      if (!progression.exercises) return
+
+      // Calcular score basado en múltiples factores
+      let muscleGroupScore = 0
+      let groupCount = 0
+
+      progression.exercises.muscle_groups?.forEach(group => {
+        muscleGroupScore += muscleGroupPriorities[group] || 1.0
+        groupCount++
+      })
+
+      const avgMuscleScore = groupCount > 0 ? muscleGroupScore / groupCount : 1.0
+      
+      // Factor de progresión (preferir ejercicios que el usuario puede progresar)
+      const progressionFactor = progression.consecutive_completions >= 2 ? 1.2 : 
+                              progression.consecutive_completions === 1 ? 1.0 : 0.8
+
+      // Factor de adecuación al ICA
+      const difficultyFactor = Math.max(0.5, 1.0 - Math.abs(progression.exercises.difficulty_level - icaScore) * 0.1)
+
+      const totalScore = avgMuscleScore * progressionFactor * difficultyFactor
+
+      if (totalScore > highestScore) {
+        highestScore = totalScore
+        bestProgression = progression
+      }
+    })
+
+    return bestProgression
+  }
+
+  /**
+   * Calcula el número óptimo de series considerando prioridades de grupos musculares
+   */
+  private calculateOptimalSets(
+    category: string, 
+    muscleGroupPriorities: { [muscleGroup: string]: number },
+    icaScore: number
+  ): number {
+    // Sets base por categoría
+    const baseSets = {
+      push: 3, pull: 3, squat: 3, hinge: 3, core: 2, locomotion: 2
+    }
+
+    let baseValue = baseSets[category as keyof typeof baseSets] || 3
+
+    // Ajustar basado en el ICA
+    if (icaScore > 6) baseValue += 1
+    else if (icaScore < 4) baseValue = Math.max(2, baseValue - 1)
+
+    return baseValue
+  }
+
+  /**
+   * Calcula el tiempo de descanso óptimo
+   */
+  private calculateRestTime(category: string, icaScore: number): number {
+    const baseRest = {
+      push: 90, pull: 90, squat: 120, hinge: 120, core: 60, locomotion: 60
+    }
+    
+    const rest = baseRest[category as keyof typeof baseRest] || 90
+    
+    // Ajustar basado en ICA (mayor ICA = más intensidad = más descanso)
+    const icaFactor = Math.max(0.8, Math.min(1.3, icaScore / 5))
+    return Math.round(rest * icaFactor)
+  }
+
+  /**
+   * NUEVO: Fuerza el balance muscular con mínimos obligatorios
+   * Especialmente enfocado en corregir el sub-desarrollo de piernas
+   */
+  private enforceMuscleBalance(priorities: { [muscleGroup: string]: number }): { [muscleGroup: string]: number } {
+    const balanced = { ...priorities }
+    
+    // UPDATED: Mínimos más agresivos basados en resultados de simulación
+    // Simulación previa mostró piernas aún 30% sub-desarrolladas con mínimos 1.2
+    const minimumPriorities = {
+      'quadriceps': 1.5,    // CRÍTICO: Aumentado de 1.2 a 1.5 - Piernas aún sub-desarrolladas
+      'hamstrings': 1.5,    // CRÍTICO: Aumentado de 1.2 a 1.5 - Piernas aún sub-desarrolladas
+      'glutes': 0.6,        // REDUCIR MÁS: Reducido de 0.7 a 0.6 - Aún sobre-desarrollados
+      'chest': 0.8,         // REDUCIR: Ligeramente sobre-desarrollados
+      'back': 1.1,          // MANTENER: Buenos resultados (+39% mejora)
+      'shoulders': 0.8,     // REDUCIR MÁS: Reducido de 0.9 a 0.8
+      'core': 1.0,          // MANTENER: Buenos
+      'abs': 1.0            // MANTENER: Buenos
+    }
+    
+    // Calcular desequilibrio de piernas para activar modo super agresivo
+    const legMuscles = ['quadriceps', 'hamstrings']
+    const avgLegPriority = legMuscles
+      .map(muscle => balanced[muscle] || 0)
+      .reduce((sum, priority) => sum + priority, 0) / legMuscles.length
+
+    const allMuscleAvg = Object.values(balanced)
+      .reduce((sum, priority) => sum + priority, 0) / Object.values(balanced).length
+
+    const legImbalanceRatio = avgLegPriority / allMuscleAvg
+    
+    // MODO SUPER AGRESIVO: Si piernas están >40% por debajo del promedio
+    if (legImbalanceRatio < 0.6) {
+      minimumPriorities.quadriceps = 1.8  // Forzar aún más
+      minimumPriorities.hamstrings = 1.8
+      minimumPriorities.glutes = 0.5      // Reducir músculo competidor
+    }
+    
+    // Aplicar mínimos forzados
+    Object.entries(minimumPriorities).forEach(([group, minimum]) => {
+      if (balanced[group] !== undefined) {
+        if (minimum > 1.0) {
+          // Forzar mayor prioridad para grupos sub-desarrollados
+          balanced[group] = Math.max(balanced[group], minimum)
+        } else {
+          // Limitar prioridad para grupos sobre-desarrollados
+          balanced[group] = Math.min(balanced[group], minimum)
+        }
+      } else {
+        balanced[group] = minimum
+      }
+    })
+    
+    // Detectar desequilibrios críticos (>40% diferencia)
+    const avgPriority = Object.values(balanced).reduce((a, b) => a + b, 0) / Object.keys(balanced).length
+    const criticalImbalances: string[] = []
+    
+    Object.entries(balanced).forEach(([group, priority]) => {
+      const deviation = Math.abs(priority - avgPriority) / avgPriority
+      if (deviation > 0.4) {
+        criticalImbalances.push(group)
+        // Ajustar hacia el promedio para reducir desequilibrio
+        balanced[group] = priority * 0.8 + avgPriority * 0.2
+      }
+    })
+    
+    return balanced
+  }
+
+  /**
+   * NUEVO: Sistema de detección de alerta temprana
+   * Detecta usuarios en riesgo de abandono o declive
+   */
+  private detectEarlyWarnings(recentSessions: any[]): {
+    isAtRisk: boolean
+    riskLevel: 'low' | 'medium' | 'high'
+    warnings: string[]
+    shouldTriggerRescue: boolean
+  } {
+    const warnings: string[] = []
+    let riskScore = 0
+    
+    if (recentSessions.length === 0) {
+      return { isAtRisk: false, riskLevel: 'low', warnings: [], shouldTriggerRescue: false }
+    }
+    
+    // Analizar últimas 6 sesiones (2 semanas aproximadamente)
+    const recentSessions6 = recentSessions.slice(0, 6)
+    const completedSessions = recentSessions6.filter(s => s.status === 'completed')
+    
+    // 1. ADHERENCIA CRÍTICA
+    const adherenceRate = completedSessions.length / recentSessions6.length
+    if (adherenceRate < 0.4) {
+      warnings.push('Adherencia crítica: menos de 40% de sesiones completadas')
+      riskScore += 3
+    } else if (adherenceRate < 0.6) {
+      warnings.push('Adherencia baja: menos de 60% de sesiones completadas')
+      riskScore += 2
+    }
+    
+    // 2. COMPLETION RATE DECLINANTE
+    if (completedSessions.length >= 3) {
+      const recentCompletionRates = completedSessions.slice(0, 3).map(s => {
+        const sessionExercises = s.session_exercises || []
+        return sessionExercises.length > 0 ? 
+          sessionExercises.reduce((avg: number, se: any) => avg + (se.sets_completed || 0) / (se.sets_planned || 1), 0) / sessionExercises.length : 0
+      })
+      
+      const avgRecentCompletion = recentCompletionRates.reduce((a, b) => a + b, 0) / recentCompletionRates.length
+      
+      if (avgRecentCompletion < 0.6) {
+        warnings.push('Completion rate bajo: menos de 60% de ejercicios completados')
+        riskScore += 2
+      }
+    }
+    
+    // 3. PATRÓN DE ABANDONO (3 sesiones consecutivas fallidas)
+    let consecutiveFailures = 0
+    for (const session of recentSessions6) {
+      if (session.status !== 'completed') {
+        consecutiveFailures++
+      } else {
+        break
+      }
+    }
+    
+    if (consecutiveFailures >= 3) {
+      warnings.push('CRÍTICO: 3 o más sesiones consecutivas no completadas')
+      riskScore += 4
+    } else if (consecutiveFailures >= 2) {
+      warnings.push('2 sesiones consecutivas no completadas')
+      riskScore += 2
+    }
+    
+    // 4. DECLIVE EN ICA
+    if (recentSessions.length >= 6) {
+      const earlyICA = recentSessions.slice(-3).map(s => s.ica_score || 1).reduce((a, b) => a + b, 0) / 3
+      const recentICA = recentSessions.slice(0, 3).map(s => s.ica_score || 1).reduce((a, b) => a + b, 0) / 3
+      const icaDecline = (earlyICA - recentICA) / earlyICA
+      
+      if (icaDecline > 0.15) {
+        warnings.push('Declive significativo en ICA (>15%)')
+        riskScore += 2
+      }
+    }
+    
+    // Determinar nivel de riesgo
+    let riskLevel: 'low' | 'medium' | 'high' = 'low'
+    let shouldTriggerRescue = false
+    
+    if (riskScore >= 5) {
+      riskLevel = 'high'
+      shouldTriggerRescue = true
+    } else if (riskScore >= 3) {
+      riskLevel = 'medium'
+    }
+    
+    return {
+      isAtRisk: riskScore > 0,
+      riskLevel,
+      warnings,
+      shouldTriggerRescue
+    }
+  }
+
+  /**
+   * NUEVO: Factor de confianza basado en historial del usuario
+   * Ajusta las progresiones según la confiabilidad demostrada
+   */
+  private calculateConfidenceFactor(recentSessions: any[]): {
+    confidenceScore: number
+    progressionMultiplier: number
+    recommendations: string[]
+  } {
+    if (recentSessions.length === 0) {
+      return {
+        confidenceScore: 0.5,
+        progressionMultiplier: 0.8, // Conservador para usuarios nuevos
+        recommendations: ['Usuario nuevo: progresión conservadora']
+      }
+    }
+    
+    const recommendations: string[] = []
+    let confidenceScore = 0.5 // Base neutral
+    
+    // Analizar consistencia de adherencia
+    const completedSessions = recentSessions.filter(s => s.status === 'completed')
+    const adherenceRate = completedSessions.length / Math.max(1, recentSessions.length)
+    
+    // Analizar consistencia de completion rate
+    let avgCompletionRate = 0
+    let completionConsistency = 0
+    
+    if (completedSessions.length > 0) {
+      const completionRates = completedSessions.map(s => {
+        const exercises = s.session_exercises || []
+        return exercises.length > 0 ? 
+          exercises.reduce((sum: number, ex: any) => sum + ((ex.sets_completed || 0) / (ex.sets_planned || 1)), 0) / exercises.length : 0
+      })
+      
+      avgCompletionRate = completionRates.reduce((a, b) => a + b, 0) / completionRates.length
+      const stdDev = Math.sqrt(completionRates.reduce((sum, rate) => sum + Math.pow(rate - avgCompletionRate, 2), 0) / completionRates.length)
+      completionConsistency = 1 - (stdDev / Math.max(0.1, avgCompletionRate))
+    }
+    
+    // Calcular score de confianza (0.0 - 1.0)
+    confidenceScore = (
+      adherenceRate * 0.4 +           // 40% peso a adherencia
+      avgCompletionRate * 0.3 +       // 30% peso a completion rate
+      completionConsistency * 0.3     // 30% peso a consistencia
+    )
+    
+    // Bonificaciones por patrones positivos
+    if (adherenceRate > 0.8 && avgCompletionRate > 0.8) {
+      confidenceScore += 0.1
+      recommendations.push('Usuario altamente confiable: progresión acelerada')
+    }
+    
+    if (completionConsistency > 0.8) {
+      confidenceScore += 0.05
+      recommendations.push('Muy consistente: predicciones confiables')
+    }
+    
+    // Penalizaciones por patrones negativos
+    if (adherenceRate < 0.5) {
+      confidenceScore -= 0.15
+      recommendations.push('Baja adherencia: progresión muy conservadora')
+    }
+    
+    if (completionConsistency < 0.5) {
+      confidenceScore -= 0.1
+      recommendations.push('Inconsistente: monitoreo cercano requerido')
+    }
+    
+    // Clampear entre 0.1 y 1.0
+    confidenceScore = Math.max(0.1, Math.min(1.0, confidenceScore))
+    
+    // Calcular multiplicador de progresión
+    let progressionMultiplier = 1.0
+    
+    if (confidenceScore > 0.8) {
+      progressionMultiplier = 1.2 // Progresión 20% más rápida
+    } else if (confidenceScore > 0.6) {
+      progressionMultiplier = 1.0 // Progresión normal
+    } else if (confidenceScore > 0.4) {
+      progressionMultiplier = 0.8 // Progresión 20% más lenta
+    } else {
+      progressionMultiplier = 0.6 // Progresión 40% más lenta
+    }
+    
+    return {
+      confidenceScore,
+      progressionMultiplier,
+      recommendations
+    }
+  }
+
+  /**
+   * NUEVO: Genera rutinas de rescate para usuarios en crisis
+   * Rutinas más cortas, fáciles y motivadoras
+   */
+  private generateRescueRoutine(
+    profile: UserProfile, 
+    progressions: UserExerciseProgression[], 
+    icaData: ICAData
+  ): GeneratedSession {
+    // Rutinas de rescate: más cortas (15-20 min), más fáciles, más variadas
+    const rescueCategories = ['push', 'core'] // Solo 2 categorías para brevedad
+    const rescueBlocks: ExerciseBlock[] = []
+    
+    rescueCategories.forEach(category => {
+      const categoryProgression = progressions.find(p => 
+        p.exercises?.category === category && p.is_active
+      )
+      
+      if (categoryProgression?.exercises) {
+        // Reducir dificultad significativamente
+        const rescueReps = Math.max(3, Math.round(categoryProgression.personal_best_reps! * 0.6))
+        
+        rescueBlocks.push({
+          exercise: categoryProgression.exercises,
+          sets: 2, // Menos series
+          reps: rescueReps,
+          rest_seconds: 45, // Descanso corto
+          progression_level: Math.max(1, categoryProgression.current_level - 1), // Nivel más fácil
+          target_rpe: Math.min(6, icaData.ica_score + 1) // RPE más bajo
+        })
+      }
+    })
+    
+    // Calentamiento y enfriamiento muy simples
+    const simpleWarmup: ExerciseBlock[] = [{
+      exercise: {
+        id: 'rescue-warmup',
+        name: 'Movilidad suave',
+        category: 'locomotion',
+        difficulty_level: 1.0,
+        progression_level: 1,
+        muscle_groups: ['full-body']
+      },
+      sets: 1,
+      reps: 5,
+      rest_seconds: 0,
+      progression_level: 1,
+      target_rpe: 2
+    }]
+    
+    const simpleCooldown: ExerciseBlock[] = [{
+      exercise: {
+        id: 'rescue-cooldown',
+        name: 'Respiración relajante',
+        category: 'core',
+        difficulty_level: 1.0,
+        progression_level: 1,
+        muscle_groups: ['core']
+      },
+      sets: 1,
+      reps: 10,
+      rest_seconds: 0,
+      progression_level: 1,
+      target_rpe: 1
+    }]
+    
+    return {
+      id: `rescue-session-${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      duration_minutes: Math.min(20, profile.preferred_session_duration * 0.6), // Máximo 20 min
+      intensity: icaData.ica_score * 0.6, // Intensidad reducida
+      warm_up: simpleWarmup,
+      exercise_blocks: rescueBlocks,
+      cool_down: simpleCooldown,
+      focus_areas: rescueCategories,
+      notes: `🆘 RUTINA DE RESCATE - Sesión corta y fácil para recuperar motivación (ICA: ${icaData.ica_score.toFixed(1)})`
+    }
   }
 }

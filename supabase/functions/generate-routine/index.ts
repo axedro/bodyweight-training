@@ -94,6 +94,27 @@ serve(async (req) => {
       .gte('session_date', new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
       .order('session_date', { ascending: false })
 
+    // Get muscle group analysis data for balanced routine generation
+    const today = new Date()
+    const monday = new Date(today)
+    monday.setDate(today.getDate() - today.getDay() + 1)
+    const currentWeekStart = monday.toISOString().split('T')[0]
+    
+    // Get current week muscle group metrics
+    const { data: muscleGroupMetrics } = await supabase
+      .from('muscle_group_metrics')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('week_start', currentWeekStart)
+    
+    // Get recent exercise performance data for analysis
+    const { data: exercisePerformance } = await supabase
+      .from('exercise_performance')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('session_date', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+      .order('session_date', { ascending: false })
+
     // Initialize algorithm
     const algorithm = new AdaptiveTrainingAlgorithm()
 
@@ -105,13 +126,15 @@ serve(async (req) => {
       wellnessLogs: [] // TODO: Add wellness logs if needed
     })
 
-    // Generate training plan
+    // Generate training plan with muscle group balance consideration
     const trainingPlan = algorithm.generateTrainingPlan({
       profile,
       progressions: userProgressions,
       recentSessions: recentSessions || [],
       icaData,
-      daysToGenerate
+      daysToGenerate,
+      muscleGroupMetrics: muscleGroupMetrics || [],
+      exercisePerformance: exercisePerformance || []
     })
 
     return new Response(
