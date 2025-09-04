@@ -248,9 +248,12 @@ export class AdaptiveTrainingAlgorithm {
 
     const detraining_factor = Math.max(1 - (days_since_last / 14) * 0.1, 0.7)
 
+    // Calculate dynamic fitness score based on actual progress
+    const dynamic_fitness_score = this.calculateDynamicFitnessScore(data, avg_completion_rate, avg_rpe, avg_technical_quality)
+    
     // Calculate base fitness level
     const fitness_level_multiplier = this.FITNESS_LEVELS[profile.fitness_level] || 1.0
-    const base_fitness = (profile.current_fitness_score || 4.0) / 10
+    const base_fitness = dynamic_fitness_score / 10
 
     // Final ICA calculation
     const ica_score = Math.max(
@@ -1399,5 +1402,66 @@ export class AdaptiveTrainingAlgorithm {
     }
 
     return trainingPlan
+  }
+
+  /**
+   * Calculate dynamic fitness score based on actual progress
+   * This replaces the static current_fitness_score with a dynamic assessment
+   */
+  calculateDynamicFitnessScore(
+    data: { profile: UserProfile, progressions: UserExerciseProgression[], recentSessions: TrainingSession[] },
+    avg_completion_rate: number,
+    avg_rpe: number,
+    avg_technical_quality: number
+  ): number {
+    const { profile, progressions, recentSessions } = data
+    
+    // Start with profile-based baseline
+    const initial_fitness = profile.current_fitness_score || this.FITNESS_LEVELS[profile.fitness_level] * 2.5
+    
+    // If no training history, return baseline
+    if (recentSessions.length === 0 || progressions.length === 0) {
+      return Math.max(initial_fitness, 2.0)
+    }
+    
+    // 1. Exercise Progression Factor (40% weight)
+    // Average progression level across all exercises (1-7 scale)
+    const avg_progression_level = progressions.length > 0 ? 
+      progressions.reduce((sum, p) => sum + p.current_level, 0) / progressions.length : 1.0
+    
+    // Convert to fitness score contribution (1-7 → 2-8 points)
+    const progression_contribution = 1 + avg_progression_level
+    
+    // 2. Performance Quality Factor (30% weight)
+    // Based on completion rate, RPE optimization, and technique
+    const completion_factor = Math.min(avg_completion_rate * 4, 4) // 0-4 points
+    const rpe_factor = Math.max(4 - Math.abs(avg_rpe - 6.5), 0) / 4 * 2 // 0-2 points, optimal RPE ~6.5
+    const technique_factor = (avg_technical_quality / 5) * 2 // 0-2 points
+    
+    const performance_contribution = completion_factor + rpe_factor + technique_factor
+    
+    // 3. Consistency Factor (20% weight)
+    // Training frequency and adherence over time
+    const recent_sessions_count = recentSessions.filter(s => s.status === 'completed').length
+    const weeks_training = Math.max(recentSessions.length / 3, 1) // Assuming 3 sessions per week
+    const consistency_factor = Math.min(recent_sessions_count / weeks_training / 3, 1) * 2 // 0-2 points
+    
+    // 4. Time-based Improvement Factor (10% weight)
+    // Bonus for sustained training over time
+    const training_duration_weeks = weeks_training
+    const duration_bonus = Math.min(training_duration_weeks / 24, 1) * 1 // 0-1 points, max at 6 months
+    
+    // Calculate weighted fitness score
+    const dynamic_score = 
+      (progression_contribution * 0.4) +      // 40% - exercise progression
+      (performance_contribution * 0.3) +     // 30% - performance quality  
+      (consistency_factor * 0.2) +           // 20% - consistency
+      (duration_bonus * 0.1) +               // 10% - time bonus
+      2.0 // Base minimum score
+    
+    // Ensure reasonable bounds (2.0 - 10.0)
+    const final_score = Math.max(2.0, Math.min(10.0, dynamic_score))
+    
+    return final_score
   }
 }

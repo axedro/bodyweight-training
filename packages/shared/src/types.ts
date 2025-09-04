@@ -205,6 +205,7 @@ export interface ExerciseBlock {
   progression_level: number;
   target_rpe: number;
   notes?: string;
+  session_exercise_id?: string; // ID from session_exercises table for tracking completion
 }
 
 export interface TrainingPlan {

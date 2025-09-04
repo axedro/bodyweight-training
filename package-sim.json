@@ -1,0 +1,13 @@
+{
+  "name": "bodyweight-simulation",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "User simulation script for bodyweight training app",
+  "main": "user_simulation.js",
+  "scripts": {
+    "simulate": "node user_simulation.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}

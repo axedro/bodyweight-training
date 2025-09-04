@@ -214,7 +214,7 @@ export class RoutineService {
           user_id: user.id,
           session_date: session.date || new Date().toISOString().split('T')[0],
           status: 'planned',
-          planned_duration: session.duration_minutes,
+          planned_duration: Math.round(session.duration_minutes), // Convert to integer
           intensity_target: session.intensity,
           notes: session.notes
         })
@@ -232,28 +232,28 @@ export class RoutineService {
           exercise_id: block.exercise.id,
           block_order: index + 1,
           block_type: 'warmup',
-          sets_planned: block.sets,
-          reps_planned: block.reps,
-          rest_seconds: block.rest_seconds
+          sets_planned: Math.round(block.sets || 1),
+          reps_planned: Math.round(block.reps || 10),
+          rest_seconds: Math.round(block.rest_seconds || 30)
         })),
         ...session.exercise_blocks.map((block, index) => ({
           session_id: data.id,
           exercise_id: block.exercise.id,
           block_order: session.warm_up.length + index + 1,
           block_type: 'main',
-          sets_planned: block.sets,
-          reps_planned: block.reps,
-          rest_seconds: block.rest_seconds,
-          target_rpe: block.target_rpe
+          sets_planned: Math.round(block.sets || 3),
+          reps_planned: Math.round(block.reps || 10),
+          rest_seconds: Math.round(block.rest_seconds || 60),
+          target_rpe: Math.round(block.target_rpe || 7)
         })),
         ...session.cool_down.map((block, index) => ({
           session_id: data.id,
           exercise_id: block.exercise.id,
           block_order: session.warm_up.length + session.exercise_blocks.length + index + 1,
           block_type: 'cooldown',
-          sets_planned: block.sets,
-          reps_planned: block.reps,
-          rest_seconds: block.rest_seconds
+          sets_planned: Math.round(block.sets || 1),
+          reps_planned: Math.round(block.reps || 10),
+          rest_seconds: Math.round(block.rest_seconds || 30)
         }))
       ]
 
@@ -301,6 +301,37 @@ export class RoutineService {
       return await response.json()
     } catch (error) {
       console.error('Error analyzing muscle groups:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Analiza la evolución temporal de los KPIs del usuario
+   */
+  async analyzeEvolution(): Promise<any> {
+    try {
+      const { data: { session } } = await this.supabase.auth.getSession()
+      
+      if (!session) {
+        throw new Error('No authenticated session')
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/analyze-evolution`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js/2.0.0'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze evolution')
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error analyzing evolution:', error)
       throw error
     }
   }
