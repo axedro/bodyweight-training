@@ -21,12 +21,12 @@ const TEST_USER = {
   password: 'simulation123',
   profile: {
     age: 28,
-    weight: 75,
-    height: 175,
+    weight: 75.0,
+    height: 175.0,
     fitness_level: 'beginner',
     experience_years: 0,
-    available_days: 3,
-    preferred_duration: 30,
+    available_days_per_week: 3,
+    preferred_session_duration: 30,
     preferred_intensity: 0.7
   }
 };
@@ -125,7 +125,7 @@ class UserSimulator {
   async updateProfile() {
     console.log('📝 Updating user profile...');
     
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/user_profiles`, {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/user_profiles?id=eq.${this.userId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -140,9 +140,11 @@ class UserSimulator {
     });
 
     if (!response.ok) {
-      console.warn('⚠️ Profile update failed, continuing...');
+      const errorText = await response.text();
+      console.error('❌ Profile update failed:', response.status, errorText);
+      throw new Error(`Failed to update profile: ${errorText}`);
     } else {
-      console.log('✅ Profile updated');
+      console.log('✅ Profile updated successfully');
     }
   }
 

@@ -5,6 +5,7 @@ import { AdaptiveTrainingAlgorithm } from '../_shared/algorithm.ts'
 
 interface GenerateRoutineRequest {
   daysToGenerate?: number
+  biometricData?: any
 }
 
 serve(async (req) => {
@@ -36,7 +37,7 @@ serve(async (req) => {
       )
     }
 
-    const { daysToGenerate = 1 }: GenerateRoutineRequest = await req.json()
+    const { daysToGenerate = 1, biometricData }: GenerateRoutineRequest = await req.json()
 
     // Get user profile
     const { data: profile, error: profileError } = await supabase
@@ -50,6 +51,85 @@ serve(async (req) => {
         JSON.stringify({ error: 'User profile not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // Save biometric snapshot if biometric data provided
+    if (biometricData && Object.keys(biometricData).length > 0) {
+      try {
+        // Calculate age from birth_date if available
+        let age: number | null = null
+        if (profile.birth_date) {
+          const birthDate = new Date(profile.birth_date)
+          const today = new Date()
+          let calculatedAge = today.getFullYear() - birthDate.getFullYear()
+          const monthDiff = today.getMonth() - birthDate.getMonth()
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            calculatedAge = calculatedAge - 1
+          }
+          age = calculatedAge
+        }
+
+        // Prepare biometric snapshot data
+        const snapshotData: any = {
+          user_id: user.id,
+          snapshot_date: new Date().toISOString().split('T')[0],
+          data_source: 'pre_routine'
+        }
+
+        // Add biometric fields if provided
+        if (biometricData.weight) snapshotData.weight = parseFloat(biometricData.weight)
+        if (biometricData.body_fat_percentage) snapshotData.body_fat_percentage = parseFloat(biometricData.body_fat_percentage)
+        if (biometricData.resting_hr) snapshotData.resting_hr = parseInt(biometricData.resting_hr)
+        if (biometricData.training_hr_avg) snapshotData.training_hr_avg = parseInt(biometricData.training_hr_avg)
+        if (biometricData.sleep_hours) snapshotData.sleep_hours = parseFloat(biometricData.sleep_hours)
+        if (biometricData.sleep_quality) snapshotData.sleep_quality = parseInt(biometricData.sleep_quality)
+        if (biometricData.fatigue_level) snapshotData.fatigue_level = parseInt(biometricData.fatigue_level)
+        if (profile.height) snapshotData.height = parseFloat(profile.height)
+        if (age) snapshotData.age = age
+
+        // Insert/update biometric snapshot (upsert by user_id and snapshot_date)
+        const { error: snapshotError } = await supabase
+          .from('biometric_snapshots')
+          .upsert(snapshotData)
+
+        if (snapshotError) {
+          console.error('Error saving biometric snapshot:', snapshotError)
+          // Don't fail the routine generation if biometric save fails
+        } else {
+          console.log('Biometric snapshot saved successfully')
+        }
+      } catch (error) {
+        console.error('Error processing biometric data:', error)
+        // Continue with routine generation even if biometric save fails
+      }
+    }
+
+    // Get recent biometric snapshots for enhanced algorithm calculation
+    const { data: biometricSnapshots } = await supabase
+      .from('biometric_snapshots')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('snapshot_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+      .order('snapshot_date', { ascending: false })
+
+    // Update profile with most recent biometric data if available
+    let enhancedProfile = { ...profile }
+    if (biometricSnapshots && biometricSnapshots.length > 0) {
+      const latestSnapshot = biometricSnapshots[0]
+      
+      // Use biometric data from snapshots, falling back to profile data
+      enhancedProfile = {
+        ...profile,
+        weight: latestSnapshot.weight || profile.weight,
+        body_fat_percentage: latestSnapshot.body_fat_percentage || profile.body_fat_percentage,
+        resting_hr: latestSnapshot.resting_hr || profile.resting_hr,
+        training_hr_avg: latestSnapshot.training_hr_avg || profile.training_hr_avg,
+        sleep_hours: latestSnapshot.sleep_hours || profile.sleep_hours,
+        sleep_quality: latestSnapshot.sleep_quality || profile.sleep_quality,
+        fatigue_level: latestSnapshot.fatigue_level || profile.fatigue_level,
+        age: latestSnapshot.age || profile.age,
+        hrv_trend: latestSnapshot.hrv_trend || profile.hrv_trend
+      }
     }
 
     // Get user's current progressions
@@ -74,7 +154,7 @@ serve(async (req) => {
     let userProgressions = progressions || []
     if (!progressions || progressions.length === 0) {
       console.log('Creating initial progressions for new user:', user.id)
-      userProgressions = await createInitialProgressions(supabase, user.id, profile)
+      userProgressions = await createInitialProgressions(supabase, user.id, enhancedProfile)
     }
 
     // Get recent training history
@@ -120,7 +200,7 @@ serve(async (req) => {
 
     // Calculate current ICA
     const icaData = algorithm.calculateICA({
-      profile,
+      profile: enhancedProfile,
       progressions: userProgressions,
       recentSessions: recentSessions || [],
       wellnessLogs: [] // TODO: Add wellness logs if needed
@@ -128,7 +208,7 @@ serve(async (req) => {
 
     // Generate training plan with muscle group balance consideration
     const trainingPlan = algorithm.generateTrainingPlan({
-      profile,
+      profile: enhancedProfile,
       progressions: userProgressions,
       recentSessions: recentSessions || [],
       icaData,

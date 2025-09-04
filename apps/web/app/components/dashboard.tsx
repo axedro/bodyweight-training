@@ -24,6 +24,7 @@ import { SessionFeedback } from './session-feedback'
 import { ProgressCharts } from './progress-charts'
 import { MuscleGroupAnalysis } from './muscle-group-analysis'
 import EvolutionAnalytics from './evolution-analytics'
+import { BiometricUpdate } from './biometric-update'
 
 interface DashboardProps {
   user: any
@@ -39,6 +40,8 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
   const [showFeedback, setShowFeedback] = useState(false)
   const [trainingHistory, setTrainingHistory] = useState<any[]>([])
   const [muscleGroupData, setMuscleGroupData] = useState<any>(null)
+  const [showBiometricUpdate, setShowBiometricUpdate] = useState(false)
+  const [currentBiometricData, setCurrentBiometricData] = useState<any>(null)
 
   useEffect(() => {
     loadDashboardData()
@@ -89,11 +92,59 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
     }
   }
 
+  const loadCurrentBiometrics = async () => {
+    try {
+      // Load latest biometric data from user profile and biometric snapshots
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-latest-biometrics`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await routineService.supabase.auth.getSession()).data.session?.access_token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return data
+      }
+      
+      // Fallback to profile data if biometric snapshots not available
+      return {
+        weight: profile?.weight,
+        body_fat_percentage: profile?.body_fat_percentage,
+        resting_hr: profile?.resting_hr,
+        training_hr_avg: profile?.training_hr_avg,
+        sleep_hours: profile?.sleep_hours,
+        sleep_quality: profile?.sleep_quality,
+        fatigue_level: profile?.fatigue_level,
+        last_updated: profile?.updated_at
+      }
+    } catch (error) {
+      console.error('Error loading biometrics:', error)
+      return {}
+    }
+  }
+
   const generateNewRoutine = async () => {
     try {
-      setGeneratingRoutine(true)
+      // First load current biometric data
+      const biometricData = await loadCurrentBiometrics()
+      setCurrentBiometricData(biometricData)
       
-      const trainingPlan = await routineService.generateDailyRoutine(1)
+      // Show biometric update dialog first
+      setShowBiometricUpdate(true)
+    } catch (error) {
+      console.error('Error preparing routine generation:', error)
+    }
+  }
+
+  const handleBiometricUpdateComplete = async (updatedData: any) => {
+    try {
+      setGeneratingRoutine(true)
+      setShowBiometricUpdate(false)
+      
+      // Generate routine with updated biometric data
+      const trainingPlan = await routineService.generateDailyRoutine(1, updatedData)
       
       if (trainingPlan.current_session) {
         // La sesión ya viene con ID y session_exercise_ids del Edge Function
@@ -347,6 +398,14 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
           <EvolutionAnalytics />
         </TabsContent>
       </Tabs>
+
+      {/* Biometric Update Dialog */}
+      <BiometricUpdate
+        isOpen={showBiometricUpdate}
+        onClose={() => setShowBiometricUpdate(false)}
+        onUpdate={handleBiometricUpdateComplete}
+        currentData={currentBiometricData}
+      />
     </div>
   )
 }

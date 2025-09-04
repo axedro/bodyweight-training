@@ -5,12 +5,12 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export class RoutineService {
-  private supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
+  public supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
 
   /**
    * Genera una rutina diaria usando el algoritmo adaptativo
    */
-  async generateDailyRoutine(daysToGenerate: number = 1): Promise<TrainingPlan> {
+  async generateDailyRoutine(daysToGenerate: number = 1, biometricData?: any): Promise<TrainingPlan> {
     try {
       const { data: { session } } = await this.supabase.auth.getSession()
       
@@ -25,7 +25,7 @@ export class RoutineService {
           'Authorization': `Bearer ${session.access_token}`,
           'X-Client-Info': 'supabase-js/2.0.0'
         },
-        body: JSON.stringify({ daysToGenerate })
+        body: JSON.stringify({ daysToGenerate, biometricData })
       })
 
       if (!response.ok) {
@@ -329,7 +329,50 @@ export class RoutineService {
         throw new Error('Failed to analyze evolution')
       }
 
-      return await response.json()
+      const result = await response.json()
+      const analysis = result.analysis || result
+      
+      // Map the data structure to match frontend expectations
+      return {
+        ica_evolution: analysis.ica_evolution,
+        exercise_progression: analysis.exercise_progression,
+        muscle_group_balance: {
+          balance_score: analysis.muscle_groups_evolution?.weekly_balance_scores?.[analysis.muscle_groups_evolution.weekly_balance_scores.length - 1]?.balance_score || 0.5,
+          trend: analysis.muscle_groups_evolution?.balance_trend || 'stable',
+          balance_evolution: analysis.muscle_groups_evolution?.weekly_balance_scores || [],
+          top_imbalanced_groups: analysis.muscle_groups_evolution?.weekly_balance_scores?.map(w => ({ 
+            muscle_group: w.most_imbalanced, 
+            imbalance_severity: 1 - w.balance_score 
+          })) || []
+        },
+        performance_metrics: {
+          completion_rate: {
+            current: analysis.performance_evolution?.completion_rate?.current || 0,
+            trend: analysis.performance_evolution?.completion_rate?.improvement_rate > 0 ? 'improving' : 
+                   analysis.performance_evolution?.completion_rate?.improvement_rate < 0 ? 'declining' : 'stable'
+          },
+          rpe_optimization: {
+            current: analysis.performance_evolution?.rpe_optimization?.optimization_score || 0,
+            trend: 'stable' // Simplified
+          },
+          technical_quality: {
+            current: analysis.performance_evolution?.technical_quality?.current_avg / 5 || 0, // Normalize to 0-1
+            trend: analysis.performance_evolution?.technical_quality?.improvement_rate > 0 ? 'improving' : 
+                   analysis.performance_evolution?.technical_quality?.improvement_rate < 0 ? 'declining' : 'stable'
+          },
+          consistency: {
+            current: Math.min(1.0, analysis.performance_evolution?.completion_rate?.current * 1.2) || 0,
+            trend: 'stable' // Simplified
+          }
+        },
+        overall_progress: {
+          score: (analysis.summary?.overall_progress_score || 0) / 10, // Normalize to 0-1
+          classification: analysis.summary?.overall_progress_score >= 8 ? 'Excelente' :
+                         analysis.summary?.overall_progress_score >= 6 ? 'Bueno' :
+                         analysis.summary?.overall_progress_score >= 4 ? 'Regular' : 'Necesita Mejorar',
+          recommendations: analysis.summary?.recommendations || ['No hay datos suficientes para generar recomendaciones']
+        }
+      }
     } catch (error) {
       console.error('Error analyzing evolution:', error)
       throw error

@@ -124,7 +124,28 @@ export default function EvolutionAnalytics() {
     )
   }
 
-  const { ica_evolution, exercise_progression, muscle_group_balance, performance_metrics, overall_progress } = evolutionData
+  const { 
+    ica_evolution, 
+    exercise_progression, 
+    muscle_group_balance, 
+    performance_metrics, 
+    overall_progress 
+  } = evolutionData || {}
+  
+  // Early return if critical data is missing
+  if (!evolutionData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Activity className="w-5 h-5" />
+          <h2 className="text-xl font-semibold">Evolución Temporal</h2>
+        </div>
+        <p className="text-gray-600">
+          No hay datos de evolución disponibles
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -133,7 +154,7 @@ export default function EvolutionAnalytics() {
         <Activity className="w-5 h-5" />
         <h2 className="text-xl font-semibold">Evolución Temporal</h2>
         <Badge variant="outline" className="ml-auto">
-          {overall_progress.classification}
+          {overall_progress?.classification || 'Analizando...'}
         </Badge>
       </div>
 
@@ -146,14 +167,14 @@ export default function EvolutionAnalytics() {
               Puntuación General de Progreso
             </CardTitle>
             <Badge className="bg-blue-100 text-blue-800">
-              {Math.round(overall_progress.score * 100)}%
+              {Math.round((overall_progress?.score || 0) * 100)}%
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          <Progress value={overall_progress.score * 100} className="mb-4" />
+          <Progress value={(overall_progress?.score || 0) * 100} className="mb-4" />
           <div className="space-y-2">
-            {overall_progress.recommendations.map((rec, index) => (
+            {(overall_progress?.recommendations || []).map((rec, index) => (
               <div key={index} className="flex items-start gap-2 text-sm">
                 <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0" />
                 <span className="text-gray-700">{rec}</span>
@@ -172,16 +193,16 @@ export default function EvolutionAnalytics() {
               Evolución del ICA
             </CardTitle>
             <div className="flex items-center gap-2">
-              {getTrendIcon(ica_evolution.trend)}
-              <Badge className={getTrendColor(ica_evolution.trend)}>
-                {ica_evolution.trend === 'improving' ? 'Mejorando' : 
-                 ica_evolution.trend === 'declining' ? 'Declinando' : 'Estable'}
+              {getTrendIcon(ica_evolution?.trend || 'stable')}
+              <Badge className={getTrendColor(ica_evolution?.trend || 'stable')}>
+                {ica_evolution?.trend === 'improving' ? 'Mejorando' : 
+                 ica_evolution?.trend === 'declining' ? 'Declinando' : 'Estable'}
               </Badge>
             </div>
           </div>
           <CardDescription>
-            ICA Actual: {ica_evolution.current.toFixed(3)} • 
-            Predicción 4 semanas: {ica_evolution.prediction_4_weeks.toFixed(3)}
+            ICA Actual: {(ica_evolution?.current || 0).toFixed(3)} • 
+            Predicción 4 semanas: {(ica_evolution?.prediction_4_weeks || 0).toFixed(3)}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -189,7 +210,7 @@ export default function EvolutionAnalytics() {
             <div>
               <h4 className="font-medium mb-2">Cambios Semanales Recientes</h4>
               <div className="space-y-1">
-                {ica_evolution.weekly_changes.slice(-4).map((change, index) => (
+                {(ica_evolution?.weekly_changes || []).slice(-4).map((change, index) => (
                   <div key={index} className="flex justify-between text-sm">
                     <span>{change.week}</span>
                     <span className={change.change > 0 ? 'text-green-600' : 'text-red-600'}>
@@ -202,7 +223,7 @@ export default function EvolutionAnalytics() {
             <div>
               <h4 className="font-medium mb-2">Cambios Mensuales</h4>
               <div className="space-y-1">
-                {ica_evolution.monthly_changes.slice(-3).map((change, index) => (
+                {(ica_evolution?.monthly_changes || []).slice(-3).map((change, index) => (
                   <div key={index} className="flex justify-between text-sm">
                     <span>{change.month}</span>
                     <span className={change.change > 0 ? 'text-green-600' : 'text-red-600'}>
@@ -222,16 +243,16 @@ export default function EvolutionAnalytics() {
           <div className="flex items-center justify-between">
             <CardTitle>Progresión de Ejercicios</CardTitle>
             <div className="flex items-center gap-2">
-              {getTrendIcon(exercise_progression.overall_trend)}
-              <Badge className={getTrendColor(exercise_progression.overall_trend)}>
-                Nivel Promedio: {exercise_progression.avg_level_current.toFixed(1)}
+              {getTrendIcon(exercise_progression?.overall_trend || 'stable')}
+              <Badge className={getTrendColor(exercise_progression?.overall_trend || 'stable')}>
+                Nivel Promedio: {(exercise_progression?.avg_level_current || 0).toFixed(1)}
               </Badge>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {exercise_progression.exercises_detail.map((exercise, index) => (
+            {(exercise_progression?.exercises_detail || []).map((exercise, index) => (
               <div key={index} className="border rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-medium">{exercise.exercise_name}</span>
@@ -266,18 +287,18 @@ export default function EvolutionAnalytics() {
               <div className="flex items-center justify-between">
                 <span>Puntuación Balance:</span>
                 <div className="flex items-center gap-2">
-                  {getTrendIcon(muscle_group_balance.trend)}
+                  {getTrendIcon(muscle_group_balance?.trend || 'stable')}
                   <Badge variant="outline">
-                    {Math.round(muscle_group_balance.balance_score * 100)}%
+                    {Math.round((muscle_group_balance?.balance_score || 0) * 100)}%
                   </Badge>
                 </div>
               </div>
               
-              {muscle_group_balance.top_imbalanced_groups.length > 0 && (
+              {(muscle_group_balance?.top_imbalanced_groups?.length || 0) > 0 && (
                 <div>
                   <h5 className="font-medium text-sm mb-2">Grupos Musculares Desequilibrados:</h5>
                   <div className="space-y-2">
-                    {muscle_group_balance.top_imbalanced_groups.slice(0, 3).map((group, index) => (
+                    {(muscle_group_balance?.top_imbalanced_groups || []).slice(0, 3).map((group, index) => (
                       <div key={index} className="flex justify-between text-sm">
                         <span className="capitalize">{group.muscle_group}</span>
                         <Badge variant="destructive" className="text-xs">
@@ -301,9 +322,9 @@ export default function EvolutionAnalytics() {
               <div className="flex items-center justify-between">
                 <span className="text-sm">Tasa Completitud:</span>
                 <div className="flex items-center gap-1">
-                  {getTrendIcon(performance_metrics.completion_rate.trend)}
+                  {getTrendIcon(performance_metrics?.completion_rate?.trend || 'stable')}
                   <span className="text-sm font-medium">
-                    {Math.round(performance_metrics.completion_rate.current * 100)}%
+                    {Math.round((performance_metrics?.completion_rate?.current || 0) * 100)}%
                   </span>
                 </div>
               </div>
@@ -311,9 +332,9 @@ export default function EvolutionAnalytics() {
               <div className="flex items-center justify-between">
                 <span className="text-sm">Optimización RPE:</span>
                 <div className="flex items-center gap-1">
-                  {getTrendIcon(performance_metrics.rpe_optimization.trend)}
+                  {getTrendIcon(performance_metrics?.rpe_optimization?.trend || 'stable')}
                   <span className="text-sm font-medium">
-                    {Math.round(performance_metrics.rpe_optimization.current * 100)}%
+                    {Math.round((performance_metrics?.rpe_optimization?.current || 0) * 100)}%
                   </span>
                 </div>
               </div>
@@ -321,9 +342,9 @@ export default function EvolutionAnalytics() {
               <div className="flex items-center justify-between">
                 <span className="text-sm">Calidad Técnica:</span>
                 <div className="flex items-center gap-1">
-                  {getTrendIcon(performance_metrics.technical_quality.trend)}
+                  {getTrendIcon(performance_metrics?.technical_quality?.trend || 'stable')}
                   <span className="text-sm font-medium">
-                    {Math.round(performance_metrics.technical_quality.current * 100)}%
+                    {Math.round((performance_metrics?.technical_quality?.current || 0) * 100)}%
                   </span>
                 </div>
               </div>
@@ -331,9 +352,9 @@ export default function EvolutionAnalytics() {
               <div className="flex items-center justify-between">
                 <span className="text-sm">Consistencia:</span>
                 <div className="flex items-center gap-1">
-                  {getTrendIcon(performance_metrics.consistency.trend)}
+                  {getTrendIcon(performance_metrics?.consistency?.trend || 'stable')}
                   <span className="text-sm font-medium">
-                    {Math.round(performance_metrics.consistency.current * 100)}%
+                    {Math.round((performance_metrics?.consistency?.current || 0) * 100)}%
                   </span>
                 </div>
               </div>

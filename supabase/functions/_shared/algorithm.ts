@@ -160,8 +160,23 @@ export class AdaptiveTrainingAlgorithm {
     const experienceBonus = Math.min(2, profile.experience_years * 0.5) // Max +2 levels from experience
     const ageAdjustment = profile.age ? Math.max(0, (30 - profile.age) * 0.05) : 0 // Slight bonus for younger users
     
+    // Weight/Height BMI adjustment for bodyweight exercises
+    let bodyweightAdjustment = 0
+    if (profile.weight && profile.height) {
+      const bmi = profile.weight / ((profile.height / 100) ** 2)
+      if (bmi < 20) bodyweightAdjustment = 0.5 // Lighter users may find bodyweight easier
+      else if (bmi > 28) bodyweightAdjustment = -0.5 // Heavier users may find bodyweight harder
+    }
+    
+    // Body fat percentage adjustment
+    let bodyCompositionAdjustment = 0
+    if (profile.body_fat_percentage) {
+      if (profile.body_fat_percentage < 15) bodyCompositionAdjustment = 0.3 // Low body fat = more strength
+      else if (profile.body_fat_percentage > 25) bodyCompositionAdjustment = -0.3 // Higher body fat = less relative strength
+    }
+    
     // Conservative estimation - start lower than expected
-    const estimatedLevel = Math.max(1, Math.floor((baseLevel + experienceBonus + ageAdjustment) * 0.8))
+    const estimatedLevel = Math.max(1, Math.floor((baseLevel + experienceBonus + ageAdjustment + bodyweightAdjustment + bodyCompositionAdjustment) * 0.8))
     
     // Category-specific adjustments
     return {
@@ -211,10 +226,16 @@ export class AdaptiveTrainingAlgorithm {
     const actualSessions = recentSessionsLast4Weeks.length
     const adherence_rate = Math.min(actualSessions / Math.max(expectedSessions, 1), 1.0)
 
-    // Calculate recovery factor (based on sleep and fatigue)
-    const sleep_factor = profile.sleep_quality ? (profile.sleep_quality / 5) * 0.3 : 0.75
-    const fatigue_factor = profile.fatigue_level ? (1 - (profile.fatigue_level - 1) / 4) * 0.3 : 0.75
-    const recovery_factor = Math.max(sleep_factor + fatigue_factor + 0.4, 0.3)
+    // Enhanced recovery factor (sleep quality, sleep hours, fatigue level, heart rate data)
+    const sleep_quality_factor = profile.sleep_quality ? (profile.sleep_quality / 5) * 0.25 : 0.6
+    const sleep_duration_factor = profile.sleep_hours ? 
+      (profile.sleep_hours >= 7 ? 0.25 : profile.sleep_hours >= 6 ? 0.15 : 0.05) : 0.15
+    const fatigue_factor = profile.fatigue_level ? (1 - (profile.fatigue_level - 1) / 4) * 0.25 : 0.6
+    
+    // Heart rate variability can indicate recovery status
+    const hrv_factor = profile.hrv_trend ? Math.max(0.05, Math.min(0.25, profile.hrv_trend * 0.25)) : 0.15
+    
+    const recovery_factor = Math.max(sleep_quality_factor + sleep_duration_factor + fatigue_factor + hrv_factor, 0.3)
 
     // Calculate progression velocity
     const completed_exercises = recentSessionsLast4Weeks
@@ -305,7 +326,15 @@ export class AdaptiveTrainingAlgorithm {
     // Age adjustment (younger users might handle more)
     const age_factor = profile.age ? Math.max(0.8, 1.2 - (profile.age - 25) * 0.01) : 1.0
     
-    const ica_score = Math.max(0.1, Math.min(2.0, (base_ica + experience_bonus) * age_factor))
+    // Heart rate zones can help estimate cardiovascular fitness
+    let cardiovascular_bonus = 0
+    if (profile.resting_hr && profile.training_hr_avg) {
+      const hr_reserve = profile.training_hr_avg - profile.resting_hr
+      if (hr_reserve > 100) cardiovascular_bonus = 0.1 // Good cardiovascular fitness
+      else if (hr_reserve < 60) cardiovascular_bonus = -0.1 // Poor cardiovascular fitness
+    }
+    
+    const ica_score = Math.max(0.1, Math.min(2.0, (base_ica + experience_bonus + cardiovascular_bonus) * age_factor))
 
     const recommendations = [
       "¡Bienvenido! Empezaremos con rutinas suaves para evaluar tu nivel",
