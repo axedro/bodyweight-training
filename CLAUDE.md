@@ -496,6 +496,103 @@ Balanced Routine Generation
 - Injury prevention alerts based on imbalance patterns
 - Machine learning models for exercise preference prediction
 
+## API Documentation
+
+### 📚 Comprehensive OpenAPI Documentation
+Complete API documentation is available in the `docs/api/` directory:
+
+- **`docs/api/openapi.yaml`**: Complete OpenAPI 3.0.3 specification for all endpoints
+- **`docs/api/README.md`**: Developer guide and integration examples
+- **`docs/api/changelog.md`**: API version history and migration guides
+- **`docs/api/examples/`**: Practical usage examples in JavaScript, Python, and cURL
+
+### 🚀 Quick API Reference
+
+| Endpoint | Purpose | Key Features |
+|----------|---------|-------------|
+| `/generate-routine` | Generate personalized routines | ICA-based adaptation, biometric integration |
+| `/calculate-ica` | Calculate ability index | Comprehensive performance analysis |
+| `/save-session-feedback` | Track workout completion | Exercise-level performance data |
+| `/analyze-muscle-groups` | Analyze muscle balance | Imbalance detection, recommendations |
+| `/analyze-evolution` | Track long-term progress | Trend analysis, predictions |
+| `/get-latest-biometrics` | Retrieve biometric data | Historical tracking, BMI calculation |
+| `/get-current-routine` | Get active routine | Session management |
+| `/update-progressions` | Update exercise levels | Automatic progression system |
+
+### 🔗 Base URL
+```
+https://<your-supabase-project>.supabase.co/functions/v1
+```
+
+### 🔐 Authentication
+All endpoints require Supabase JWT authentication:
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+### 📖 Usage Examples
+
+**JavaScript/Node.js:**
+```javascript
+const client = new BodyweightTrainingClient(
+  'https://your-project.supabase.co',
+  'your-jwt-token'
+);
+
+// Generate routine with biometric data
+const routine = await client.generateRoutine({
+  daysToGenerate: 1,
+  biometricData: {
+    weight: 75.0,
+    sleep_hours: 7.5,
+    sleep_quality: 4,
+    fatigue_level: 2
+  }
+});
+```
+
+**Python:**
+```python
+from bodyweight_client import BodyweightTrainingClient, BiometricData
+
+client = BodyweightTrainingClient(
+    "https://your-project.supabase.co",
+    "your-jwt-token"
+)
+
+# Generate routine
+routine = client.generate_routine(
+    biometric_data=BiometricData(
+        weight=75.0,
+        sleep_hours=7.5,
+        sleep_quality=4,
+        fatigue_level=2
+    )
+)
+```
+
+**cURL:**
+```bash
+curl -X POST \
+  https://your-project.supabase.co/functions/v1/generate-routine \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "daysToGenerate": 1,
+    "biometricData": {
+      "weight": 75.0,
+      "sleep_hours": 7.5,
+      "sleep_quality": 4,
+      "fatigue_level": 2
+    }
+  }'
+```
+
+### 🛠️ Development Tools
+- **Swagger UI**: View interactive documentation by importing `openapi.yaml`
+- **Postman**: Import the OpenAPI spec for request collection
+- **Code Generation**: Use OpenAPI generators for client libraries
+
 ## ✅ SISTEMA COMPLETO FUNCIONANDO (Sprint 2 + Mejoras)
 
 ### **Estado Actual: PRODUCCIÓN LISTA**
@@ -626,11 +723,13 @@ Comprehensive temporal analysis system that tracks the evolution of key performa
 - **API Integration**: RESTful endpoint with JWT authentication
 
 ## Important Files to Understand
-- `adaptive_bodyweight_algorithm.md`: Detailed algorithm specification
+- **`docs/api/`**: Complete API documentation with OpenAPI specification
+- `adaptive_bodyweight_algorithm.md`: Detailed algorithm specification  
 - `SPRINT_PLAN.md`: Current development roadmap and progress tracking
-- `supabase/migrations/`: Database schema evolution and structure (9 migraciones)
+- `supabase/migrations/`: Database schema evolution and structure (10 migraciones)
 - `packages/shared/src/`: Core business logic and shared types
 - `turbo.json`: Build pipeline and task orchestration
 - **Sistema integrado**: `routine-service.ts`, `dashboard.tsx`, Edge Functions, `daily-routine.tsx`
 - **Muscle group tracking files**: `analyze-muscle-groups/`, `muscle-group-analysis.tsx`
 - **Evolution analytics files**: `analyze-evolution/`, `evolution-analytics.tsx`
+- **Biometric tracking files**: `biometric-update.tsx`, `010_biometric_tracking.sql`, `get-latest-biometrics/`

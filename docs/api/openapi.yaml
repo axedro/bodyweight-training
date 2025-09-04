@@ -1,0 +1,1481 @@
+openapi: 3.0.3
+info:
+  title: Bodyweight Adaptive Training API
+  description: |
+    # Bodyweight Adaptive Training System API
+
+    This API provides comprehensive endpoints for managing an adaptive bodyweight training system. The system includes:
+
+    - **User Profile Management**: Handle user onboarding, profile updates, and biometric tracking
+    - **Adaptive Training Algorithm**: Generate personalized routines based on user capability and progress
+    - **Session Management**: Track workout sessions, collect feedback, and update user progressions
+    - **Analytics & Evolution**: Analyze muscle group balance, track evolution over time, and provide insights
+    - **Biometric Tracking**: Temporal storage and analysis of biometric indicators for enhanced personalization
+
+    ## Key Features
+    
+    - 🧠 **Adaptive Algorithm**: ICA (Index of Current Ability) calculation for personalized training
+    - 💪 **Progressive System**: 7-level progression for each movement pattern
+    - 📊 **Comprehensive Analytics**: Muscle group analysis, evolution tracking, and performance metrics  
+    - 🩺 **Biometric Integration**: Historical tracking of weight, body composition, sleep, and recovery data
+    - 🔄 **Real-time Adaptation**: Continuous learning from user feedback and performance
+    - 🛡️ **Security First**: Row Level Security (RLS) ensures user data isolation
+
+    ## Authentication
+
+    All endpoints require authentication via Supabase JWT tokens. Include the token in the Authorization header:
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
+
+    ## Base URL
+    
+    Replace `<your-supabase-project>` with your Supabase project reference:
+    ```
+    https://<your-supabase-project>.supabase.co/functions/v1
+    ```
+
+    ## Error Handling
+    
+    The API uses standard HTTP status codes and returns detailed error information:
+    - `200` - Success
+    - `400` - Bad Request (validation errors)
+    - `401` - Unauthorized (invalid/missing JWT)
+    - `404` - Not Found (resource doesn't exist)
+    - `500` - Internal Server Error
+
+  version: '2.8.0'
+  contact:
+    name: API Support
+    url: https://github.com/anthropics/claude-code/issues
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://{project-ref}.supabase.co/functions/v1
+    description: Supabase Edge Functions
+    variables:
+      project-ref:
+        default: your-project
+        description: Your Supabase project reference
+
+tags:
+  - name: Routines
+    description: Generate and manage adaptive training routines
+  - name: Sessions
+    description: Track workout sessions and collect feedback
+  - name: Analytics
+    description: Analyze performance, muscle groups, and evolution
+  - name: Biometrics
+    description: Manage biometric data and historical tracking
+  - name: Progressions
+    description: Update and manage exercise progressions
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT token for user authentication
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        details:
+          type: string
+          description: Additional error details
+      required:
+        - error
+      example:
+        error: "Unauthorized"
+        details: "Invalid JWT token"
+
+    BiometricData:
+      type: object
+      properties:
+        weight:
+          type: number
+          format: float
+          minimum: 30
+          maximum: 200
+          description: Weight in kg
+        body_fat_percentage:
+          type: number
+          format: float
+          minimum: 5
+          maximum: 50
+          description: Body fat percentage
+        resting_hr:
+          type: integer
+          minimum: 40
+          maximum: 120
+          description: Resting heart rate in BPM
+        training_hr_avg:
+          type: integer
+          minimum: 80
+          maximum: 200
+          description: Average training heart rate in BPM
+        sleep_hours:
+          type: number
+          format: float
+          minimum: 4
+          maximum: 12
+          description: Hours of sleep per night
+        sleep_quality:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Sleep quality rating (1-5 scale)
+        fatigue_level:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Fatigue level rating (1-5 scale)
+        age:
+          type: integer
+          minimum: 13
+          maximum: 120
+          description: User age
+        last_updated:
+          type: string
+          format: date
+          description: Last update date
+      example:
+        weight: 75.5
+        body_fat_percentage: 18.0
+        resting_hr: 65
+        training_hr_avg: 145
+        sleep_hours: 7.5
+        sleep_quality: 4
+        fatigue_level: 2
+        age: 28
+        last_updated: "2024-09-04"
+
+    Exercise:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique exercise identifier
+        name:
+          type: string
+          description: Exercise name
+        category:
+          type: string
+          enum: [push, pull, squat, hinge, core, locomotion, warmup, cooldown]
+          description: Exercise category
+        difficulty_level:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Difficulty level (1-10)
+        progression_level:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: Progression level within category
+        muscle_groups:
+          type: array
+          items:
+            type: string
+          description: Primary muscle groups targeted
+        instructions:
+          type: string
+          description: Exercise instructions
+      required:
+        - id
+        - name
+        - category
+        - difficulty_level
+        - progression_level
+      example:
+        id: "550e8400-e29b-41d4-a716-446655440000"
+        name: "Push-ups"
+        category: "push"
+        difficulty_level: 3
+        progression_level: 2
+        muscle_groups: ["chest", "triceps", "shoulders"]
+        instructions: "Start in plank position, lower body to ground, push back up"
+
+    ExerciseBlock:
+      type: object
+      properties:
+        exercise:
+          $ref: '#/components/schemas/Exercise'
+        sets:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Number of sets
+        reps:
+          type: integer
+          minimum: 1
+          maximum: 50
+          description: Repetitions per set
+        rest_seconds:
+          type: integer
+          minimum: 10
+          maximum: 300
+          description: Rest time between sets in seconds
+        target_rpe:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Target RPE (Rate of Perceived Exertion)
+        duration_seconds:
+          type: integer
+          minimum: 10
+          maximum: 600
+          description: Duration for time-based exercises
+        session_exercise_id:
+          type: string
+          format: uuid
+          description: Database ID for this exercise in the session
+      required:
+        - exercise
+        - sets
+        - reps
+      example:
+        exercise:
+          id: "550e8400-e29b-41d4-a716-446655440000"
+          name: "Push-ups"
+          category: "push"
+        sets: 3
+        reps: 10
+        rest_seconds: 60
+        target_rpe: 7
+
+    GeneratedSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Session ID
+        date:
+          type: string
+          format: date
+          description: Session date
+        duration_minutes:
+          type: integer
+          minimum: 10
+          maximum: 120
+          description: Planned session duration
+        intensity:
+          type: number
+          format: float
+          minimum: 0.1
+          maximum: 1.0
+          description: Session intensity (0.1-1.0)
+        warm_up:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExerciseBlock'
+          description: Warm-up exercises
+        exercise_blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExerciseBlock'
+          description: Main workout exercises
+        cool_down:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExerciseBlock'
+          description: Cool-down exercises
+        notes:
+          type: string
+          description: Additional session notes
+      required:
+        - id
+        - date
+        - duration_minutes
+        - warm_up
+        - exercise_blocks
+        - cool_down
+      example:
+        id: "123e4567-e89b-12d3-a456-426614174000"
+        date: "2024-09-04"
+        duration_minutes: 35
+        intensity: 0.7
+        warm_up: []
+        exercise_blocks: []
+        cool_down: []
+
+    ICAData:
+      type: object
+      properties:
+        ica_score:
+          type: number
+          format: float
+          minimum: 0.1
+          maximum: 5.0
+          description: Index of Current Ability score
+        adherence_rate:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Training adherence rate (0-1)
+        recovery_factor:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Recovery factor based on sleep and fatigue
+        progression_velocity:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 2.0
+          description: Rate of progression
+        detraining_factor:
+          type: number
+          format: float
+          minimum: 0.5
+          maximum: 1.0
+          description: Detraining penalty factor
+        recommendations:
+          type: array
+          items:
+            type: string
+          description: Personalized recommendations
+        recent_performance:
+          type: object
+          properties:
+            sessions_last_4_weeks:
+              type: integer
+              description: Number of sessions in last 4 weeks
+            avg_completion_rate:
+              type: number
+              format: float
+              description: Average completion rate
+            avg_rpe:
+              type: number
+              format: float
+              description: Average RPE
+            avg_technical_quality:
+              type: number
+              format: float
+              description: Average technical quality
+      required:
+        - ica_score
+        - adherence_rate
+        - recovery_factor
+      example:
+        ica_score: 1.8
+        adherence_rate: 0.85
+        recovery_factor: 0.78
+        progression_velocity: 1.2
+        detraining_factor: 0.95
+        recommendations: ["Maintain current intensity", "Focus on sleep quality"]
+
+    SessionFeedback:
+      type: object
+      properties:
+        rpe_reported:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Rate of Perceived Exertion (1-10)
+        completion_rate:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Session completion rate (0-1)
+        technical_quality:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Technical quality rating (1-5)
+        enjoyment_level:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Enjoyment level rating (1-5)
+        recovery_feeling:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Recovery feeling rating (1-5)
+        actual_duration:
+          type: integer
+          minimum: 5
+          maximum: 180
+          description: Actual session duration in minutes
+      required:
+        - rpe_reported
+        - completion_rate
+        - technical_quality
+      example:
+        rpe_reported: 7
+        completion_rate: 0.9
+        technical_quality: 4
+        enjoyment_level: 4
+        recovery_feeling: 3
+        actual_duration: 32
+
+    ExercisePerformance:
+      type: object
+      properties:
+        sessionExerciseId:
+          type: string
+          format: uuid
+          description: Session exercise ID
+        exerciseId:
+          type: string
+          format: uuid
+          description: Exercise ID
+        setNumber:
+          type: integer
+          minimum: 1
+          description: Set number
+        repsCompleted:
+          type: integer
+          minimum: 0
+          description: Repetitions completed
+        rpeReported:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: RPE for this set
+        techniqueQuality:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Technique quality for this set
+        restTimeActual:
+          type: integer
+          minimum: 0
+          description: Actual rest time in seconds
+        difficultyPerceived:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Perceived difficulty
+      required:
+        - sessionExerciseId
+        - exerciseId
+        - setNumber
+        - repsCompleted
+      example:
+        sessionExerciseId: "123e4567-e89b-12d3-a456-426614174000"
+        exerciseId: "550e8400-e29b-41d4-a716-446655440000"
+        setNumber: 1
+        repsCompleted: 10
+        rpeReported: 7
+        techniqueQuality: 4
+        restTimeActual: 65
+
+    MuscleGroupAnalysis:
+      type: object
+      properties:
+        muscle_group:
+          type: string
+          description: Muscle group name
+        current_week:
+          type: object
+          properties:
+            volume_score:
+              type: number
+              format: float
+              description: Volume score for current week
+            intensity_avg:
+              type: number
+              format: float
+              description: Average intensity
+            sessions_count:
+              type: integer
+              description: Number of sessions
+        four_week_trend:
+          type: object
+          properties:
+            progression_velocity:
+              type: number
+              format: float
+              description: Progression velocity over 4 weeks
+            performance_trend:
+              type: string
+              enum: [improving, stable, declining]
+              description: Performance trend
+        imbalance_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          description: Imbalance score (0-100)
+        recommendations:
+          type: array
+          items:
+            type: string
+          description: Muscle group specific recommendations
+      required:
+        - muscle_group
+        - imbalance_score
+      example:
+        muscle_group: "quadriceps"
+        current_week:
+          volume_score: 8.5
+          intensity_avg: 7.2
+          sessions_count: 3
+        imbalance_score: 15.0
+        recommendations: ["Increase quad-focused exercises", "Balance with hamstring work"]
+
+    EvolutionAnalysis:
+      type: object
+      properties:
+        ica_evolution:
+          type: object
+          properties:
+            current_ica:
+              type: number
+              format: float
+              description: Current ICA score
+            trend:
+              type: string
+              enum: [improving, stable, declining]
+              description: ICA trend
+            weekly_changes:
+              type: array
+              items:
+                type: object
+                properties:
+                  week:
+                    type: string
+                    format: date
+                  ica:
+                    type: number
+                    format: float
+            prediction_4_weeks:
+              type: number
+              format: float
+              description: Predicted ICA in 4 weeks
+        exercise_progression:
+          type: object
+          properties:
+            overall_trend:
+              type: string
+              enum: [improving, stable, declining]
+              description: Overall progression trend
+            average_level:
+              type: number
+              format: float
+              description: Average progression level across exercises
+            exercises:
+              type: array
+              items:
+                type: object
+                properties:
+                  category:
+                    type: string
+                  current_level:
+                    type: integer
+                  progression_likelihood:
+                    type: number
+                    format: float
+        performance_metrics:
+          type: object
+          properties:
+            completion_rate:
+              type: object
+              properties:
+                current:
+                  type: number
+                  format: float
+                trend:
+                  type: string
+                  enum: [improving, stable, declining]
+            rpe_optimization:
+              type: object
+              properties:
+                current:
+                  type: number
+                  format: float
+                trend:
+                  type: string
+                  enum: [improving, stable, declining]
+            technical_quality:
+              type: object
+              properties:
+                current:
+                  type: number
+                  format: float
+                trend:
+                  type: string
+                  enum: [improving, stable, declining]
+            consistency:
+              type: object
+              properties:
+                current:
+                  type: number
+                  format: float
+                trend:
+                  type: string
+                  enum: [improving, stable, declining]
+        overall_progress:
+          type: object
+          properties:
+            score:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 1
+              description: Overall progress score (0-1)
+            classification:
+              type: string
+              enum: [Excelente, Bueno, Regular, Necesita Mejorar]
+              description: Progress classification
+            recommendations:
+              type: array
+              items:
+                type: string
+              description: Overall recommendations
+      example:
+        ica_evolution:
+          current_ica: 1.8
+          trend: "improving"
+          prediction_4_weeks: 2.1
+        overall_progress:
+          score: 0.75
+          classification: "Bueno"
+          recommendations: ["Continue current routine", "Focus on consistency"]
+
+security:
+  - BearerAuth: []
+
+paths:
+  /generate-routine:
+    post:
+      tags:
+        - Routines
+      summary: Generate Adaptive Training Routine
+      description: |
+        Generates a personalized training routine based on the user's current ability, progress, and biometric data.
+        
+        The algorithm considers:
+        - Current ICA (Index of Current Ability)
+        - Recent training history and performance
+        - Exercise progressions and capabilities
+        - Muscle group balance and imbalances
+        - Biometric data (sleep, fatigue, recovery)
+        - Available time and preferences
+        
+        If biometric data is provided, it will be automatically saved as a snapshot for historical tracking.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                daysToGenerate:
+                  type: integer
+                  minimum: 1
+                  maximum: 7
+                  default: 1
+                  description: Number of days to generate routines for
+                biometricData:
+                  $ref: '#/components/schemas/BiometricData'
+            examples:
+              basic:
+                summary: Basic routine generation
+                value:
+                  daysToGenerate: 1
+              with_biometrics:
+                summary: With biometric data
+                value:
+                  daysToGenerate: 1
+                  biometricData:
+                    weight: 75.5
+                    sleep_hours: 7.0
+                    sleep_quality: 4
+                    fatigue_level: 2
+      responses:
+        '200':
+          description: Successfully generated training routine
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  trainingPlan:
+                    type: object
+                    properties:
+                      current_session:
+                        $ref: '#/components/schemas/GeneratedSession'
+                      ica_score:
+                        type: number
+                        format: float
+                        description: ICA score used for generation
+                      recommendations:
+                        type: array
+                        items:
+                          type: string
+                        description: Algorithm recommendations
+                required:
+                  - success
+                  - trainingPlan
+              examples:
+                success:
+                  summary: Successful routine generation
+                  value:
+                    success: true
+                    trainingPlan:
+                      current_session:
+                        id: "123e4567-e89b-12d3-a456-426614174000"
+                        date: "2024-09-04"
+                        duration_minutes: 35
+                        intensity: 0.7
+                        warm_up: []
+                        exercise_blocks: []
+                        cool_down: []
+                      ica_score: 1.8
+                      recommendations: ["Great progress! Keep up current intensity"]
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /calculate-ica:
+    post:
+      tags:
+        - Analytics
+      summary: Calculate ICA Score
+      description: |
+        Calculates the user's current ICA (Index of Current Ability) based on:
+        
+        - Training history and adherence patterns
+        - Exercise progressions and performance
+        - Recovery metrics (sleep, fatigue, HRV)
+        - Recent session completion rates and RPE
+        - Technical quality and progression velocity
+        
+        The ICA score is used to personalize training intensity and volume.
+      responses:
+        '200':
+          description: Successfully calculated ICA
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ICAData'
+                  - type: object
+                    properties:
+                      success:
+                        type: boolean
+                        example: true
+              examples:
+                success:
+                  summary: Successful ICA calculation
+                  value:
+                    success: true
+                    ica_score: 1.8
+                    adherence_rate: 0.85
+                    recovery_factor: 0.78
+                    progression_velocity: 1.2
+                    detraining_factor: 0.95
+                    recommendations:
+                      - "Excellent adherence! Keep up the consistency"
+                      - "Consider improving sleep quality for better recovery"
+                    recent_performance:
+                      sessions_last_4_weeks: 11
+                      avg_completion_rate: 0.87
+                      avg_rpe: 6.8
+                      avg_technical_quality: 4.1
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /save-session-feedback:
+    post:
+      tags:
+        - Sessions
+      summary: Save Session Feedback
+      description: |
+        Saves comprehensive feedback from a completed training session, including:
+        
+        - Overall session metrics (RPE, completion rate, quality)
+        - Individual exercise performance data
+        - Set-by-set tracking with detailed metrics
+        
+        This data is used to:
+        - Update exercise progressions automatically
+        - Refine future ICA calculations
+        - Track muscle group performance over time
+        - Generate personalized recommendations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sessionId:
+                  type: string
+                  format: uuid
+                  description: ID of the completed session
+                feedback:
+                  $ref: '#/components/schemas/SessionFeedback'
+                exercisePerformance:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ExercisePerformance'
+                  description: Detailed per-exercise performance data
+              required:
+                - sessionId
+                - feedback
+            examples:
+              complete_session:
+                summary: Complete session with exercise performance
+                value:
+                  sessionId: "123e4567-e89b-12d3-a456-426614174000"
+                  feedback:
+                    rpe_reported: 7
+                    completion_rate: 0.9
+                    technical_quality: 4
+                    enjoyment_level: 4
+                    recovery_feeling: 3
+                    actual_duration: 32
+                  exercisePerformance:
+                    - sessionExerciseId: "456e7890-e89b-12d3-a456-426614174000"
+                      exerciseId: "550e8400-e29b-41d4-a716-446655440000"
+                      setNumber: 1
+                      repsCompleted: 10
+                      rpeReported: 7
+                      techniqueQuality: 4
+                      restTimeActual: 65
+              basic_feedback:
+                summary: Basic session feedback only
+                value:
+                  sessionId: "123e4567-e89b-12d3-a456-426614174000"
+                  feedback:
+                    rpe_reported: 6
+                    completion_rate: 1.0
+                    technical_quality: 5
+      responses:
+        '200':
+          description: Successfully saved session feedback
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  session:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        example: "completed"
+                      updated_progressions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            exercise_id:
+                              type: string
+                              format: uuid
+                            old_level:
+                              type: integer
+                            new_level:
+                              type: integer
+                            progression_triggered:
+                              type: boolean
+                        description: Progressions that were updated
+                  muscle_group_updates:
+                    type: object
+                    description: Updated muscle group metrics
+                required:
+                  - success
+                  - session
+              examples:
+                success_with_progression:
+                  summary: Session saved with progression updates
+                  value:
+                    success: true
+                    session:
+                      id: "123e4567-e89b-12d3-a456-426614174000"
+                      status: "completed"
+                      updated_progressions:
+                        - exercise_id: "550e8400-e29b-41d4-a716-446655440000"
+                          old_level: 2
+                          new_level: 3
+                          progression_triggered: true
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /analyze-muscle-groups:
+    post:
+      tags:
+        - Analytics
+      summary: Analyze Muscle Group Balance
+      description: |
+        Analyzes muscle group balance and performance patterns including:
+        
+        - Current week volume and intensity per muscle group
+        - 4-week trend analysis and progression velocity
+        - Imbalance detection and severity scoring
+        - Personalized recommendations for muscle group focus
+        
+        Used to:
+        - Identify and correct muscle imbalances
+        - Guide exercise selection in future routines
+        - Prevent overuse and underuse patterns
+        - Optimize training balance
+      responses:
+        '200':
+          description: Successfully analyzed muscle groups
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  muscle_group_analyses:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MuscleGroupAnalysis'
+                  summary:
+                    type: object
+                    properties:
+                      total_muscle_groups_trained:
+                        type: integer
+                        description: Number of muscle groups trained
+                      most_trained:
+                        type: string
+                        description: Most trained muscle group
+                      least_trained:
+                        type: string
+                        description: Least trained muscle group
+                      overall_balance_score:
+                        type: number
+                        format: float
+                        description: Overall balance score (0-1)
+                      major_imbalances:
+                        type: array
+                        items:
+                          type: string
+                        description: Major imbalances detected
+                      recommendations:
+                        type: array
+                        items:
+                          type: string
+                        description: Overall recommendations
+                required:
+                  - muscle_group_analyses
+                  - summary
+              examples:
+                balanced:
+                  summary: Well-balanced muscle group analysis
+                  value:
+                    muscle_group_analyses:
+                      - muscle_group: "quadriceps"
+                        current_week:
+                          volume_score: 8.5
+                          intensity_avg: 7.2
+                          sessions_count: 3
+                        imbalance_score: 5.0
+                        recommendations: ["Maintain current quad training volume"]
+                      - muscle_group: "hamstrings"
+                        current_week:
+                          volume_score: 7.8
+                          intensity_avg: 7.0
+                          sessions_count: 2
+                        imbalance_score: 12.0
+                        recommendations: ["Slightly increase hamstring focus"]
+                    summary:
+                      total_muscle_groups_trained: 8
+                      most_trained: "quadriceps"
+                      least_trained: "hamstrings"
+                      overall_balance_score: 0.78
+                      major_imbalances: []
+                      recommendations: ["Good overall balance, minor adjustments needed"]
+                imbalanced:
+                  summary: Analysis showing imbalances
+                  value:
+                    muscle_group_analyses:
+                      - muscle_group: "quadriceps"
+                        current_week:
+                          volume_score: 12.0
+                          intensity_avg: 8.0
+                          sessions_count: 4
+                        imbalance_score: 45.0
+                        recommendations: ["Reduce quad volume", "Focus on posterior chain"]
+                    summary:
+                      total_muscle_groups_trained: 6
+                      most_trained: "quadriceps"
+                      least_trained: "hamstrings"
+                      overall_balance_score: 0.42
+                      major_imbalances: ["Quad-dominant pattern detected"]
+                      recommendations: ["Priority focus on hamstrings and glutes"]
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /analyze-evolution:
+    post:
+      tags:
+        - Analytics
+      summary: Analyze Training Evolution
+      description: |
+        Provides comprehensive temporal analysis of training evolution including:
+        
+        - ICA progression over time with trend analysis
+        - Exercise progression patterns and advancement likelihood
+        - Performance metrics evolution (completion rate, RPE, quality)
+        - Muscle group balance evolution
+        - Predictive analytics for future performance
+        
+        Used for:
+        - Long-term progress tracking
+        - Identifying performance plateaus or regressions
+        - Generating data-driven recommendations
+        - Performance prediction and goal setting
+      responses:
+        '200':
+          description: Successfully analyzed evolution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvolutionAnalysis'
+              examples:
+                improving:
+                  summary: User showing improvement
+                  value:
+                    ica_evolution:
+                      current_ica: 2.1
+                      trend: "improving"
+                      weekly_changes:
+                        - week: "2024-08-01"
+                          ica: 1.6
+                        - week: "2024-08-08"
+                          ica: 1.8
+                        - week: "2024-08-15"
+                          ica: 2.0
+                        - week: "2024-08-22"
+                          ica: 2.1
+                      prediction_4_weeks: 2.4
+                    exercise_progression:
+                      overall_trend: "improving"
+                      average_level: 3.2
+                      exercises:
+                        - category: "push"
+                          current_level: 3
+                          progression_likelihood: 0.75
+                        - category: "pull"
+                          current_level: 4
+                          progression_likelihood: 0.45
+                    performance_metrics:
+                      completion_rate:
+                        current: 0.89
+                        trend: "improving"
+                      technical_quality:
+                        current: 0.82
+                        trend: "stable"
+                    overall_progress:
+                      score: 0.78
+                      classification: "Bueno"
+                      recommendations:
+                        - "Excellent progress trajectory"
+                        - "Consider increasing challenge in push exercises"
+                        - "Maintain current training consistency"
+                declining:
+                  summary: User showing decline
+                  value:
+                    ica_evolution:
+                      current_ica: 1.4
+                      trend: "declining"
+                      prediction_4_weeks: 1.2
+                    exercise_progression:
+                      overall_trend: "declining"
+                      average_level: 2.1
+                    performance_metrics:
+                      completion_rate:
+                        current: 0.65
+                        trend: "declining"
+                    overall_progress:
+                      score: 0.42
+                      classification: "Necesita Mejorar"
+                      recommendations:
+                        - "Consider reducing training intensity"
+                        - "Focus on consistency over performance"
+                        - "Review sleep and recovery habits"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /get-latest-biometrics:
+    post:
+      tags:
+        - Biometrics
+      summary: Get Latest Biometric Data
+      description: |
+        Retrieves the most recent biometric data for the authenticated user from:
+        
+        - Latest biometric snapshot (if available)
+        - User profile data (as fallback)
+        
+        Returns comprehensive biometric information including calculated fields like BMI
+        and age, along with metadata about data freshness.
+      responses:
+        '200':
+          description: Successfully retrieved biometric data
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BiometricData'
+                  - type: object
+                    properties:
+                      bmi:
+                        type: number
+                        format: float
+                        description: Calculated BMI
+                      days_old:
+                        type: integer
+                        description: Days since last update
+              examples:
+                recent_data:
+                  summary: Recent biometric data
+                  value:
+                    weight: 75.5
+                    height: 180.0
+                    body_fat_percentage: 18.0
+                    resting_hr: 65
+                    training_hr_avg: 145
+                    sleep_hours: 7.5
+                    sleep_quality: 4
+                    fatigue_level: 2
+                    age: 28
+                    bmi: 23.3
+                    last_updated: "2024-09-04"
+                    days_old: 0
+                old_data:
+                  summary: Older biometric data
+                  value:
+                    weight: 76.0
+                    sleep_hours: 7.0
+                    sleep_quality: 3
+                    fatigue_level: 3
+                    age: 28
+                    last_updated: "2024-08-20"
+                    days_old: 15
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No biometric data found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /get-current-routine:
+    post:
+      tags:
+        - Routines
+      summary: Get Current Active Routine
+      description: |
+        Retrieves the current active training routine for the authenticated user.
+        
+        Returns the most recent planned routine that hasn't been completed yet,
+        or null if no active routine exists.
+      responses:
+        '200':
+          description: Successfully retrieved current routine (or null if none)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  routine:
+                    oneOf:
+                      - $ref: '#/components/schemas/GeneratedSession'
+                      - type: null
+                required:
+                  - routine
+              examples:
+                active_routine:
+                  summary: User has active routine
+                  value:
+                    routine:
+                      id: "123e4567-e89b-12d3-a456-426614174000"
+                      date: "2024-09-04"
+                      duration_minutes: 35
+                      intensity: 0.7
+                      warm_up: []
+                      exercise_blocks: []
+                      cool_down: []
+                no_routine:
+                  summary: No active routine
+                  value:
+                    routine: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /update-progressions:
+    post:
+      tags:
+        - Progressions
+      summary: Update Exercise Progressions
+      description: |
+        Updates exercise progressions based on session performance.
+        
+        Automatically determines if users should:
+        - Advance to next progression level (after successful completions)
+        - Maintain current level (mixed performance)
+        - Regress to previous level (consistent failures)
+        
+        **Note**: This endpoint is primarily used internally by the save-session-feedback 
+        endpoint but can be called directly for custom progression management.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sessionId:
+                  type: string
+                  format: uuid
+                  description: Session ID for tracking
+                exerciseBlocks:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      exercise_id:
+                        type: string
+                        format: uuid
+                        description: Exercise ID
+                      sets_completed:
+                        type: integer
+                        minimum: 0
+                        description: Sets completed
+                      reps_completed:
+                        type: integer
+                        minimum: 0
+                        description: Total reps completed
+                      rpe_reported:
+                        type: integer
+                        minimum: 1
+                        maximum: 10
+                        description: RPE reported
+                      technical_quality:
+                        type: integer
+                        minimum: 1
+                        maximum: 5
+                        description: Technical quality
+                      enjoyment_level:
+                        type: integer
+                        minimum: 1
+                        maximum: 5
+                        description: Enjoyment level
+                      notes:
+                        type: string
+                        description: Optional notes
+                    required:
+                      - exercise_id
+                      - sets_completed
+                      - reps_completed
+                      - rpe_reported
+                      - technical_quality
+              required:
+                - sessionId
+                - exerciseBlocks
+            examples:
+              progression_update:
+                summary: Update progressions after session
+                value:
+                  sessionId: "123e4567-e89b-12d3-a456-426614174000"
+                  exerciseBlocks:
+                    - exercise_id: "550e8400-e29b-41d4-a716-446655440000"
+                      sets_completed: 3
+                      reps_completed: 30
+                      rpe_reported: 6
+                      technical_quality: 4
+                      enjoyment_level: 4
+                    - exercise_id: "660e8400-e29b-41d4-a716-446655440001"
+                      sets_completed: 2
+                      reps_completed: 12
+                      rpe_reported: 8
+                      technical_quality: 3
+                      enjoyment_level: 3
+                      notes: "Struggled with form on last set"
+      responses:
+        '200':
+          description: Successfully updated progressions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  progressions_updated:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        exercise_id:
+                          type: string
+                          format: uuid
+                        exercise_name:
+                          type: string
+                        old_level:
+                          type: integer
+                        new_level:
+                          type: integer
+                        action:
+                          type: string
+                          enum: [advanced, maintained, regressed]
+                        reason:
+                          type: string
+                          description: Reason for progression change
+                        consecutive_completions:
+                          type: integer
+                          description: Current consecutive completion count
+                required:
+                  - success
+                  - progressions_updated
+              examples:
+                successful_update:
+                  summary: Progressions updated with advancement
+                  value:
+                    success: true
+                    progressions_updated:
+                      - exercise_id: "550e8400-e29b-41d4-a716-446655440000"
+                        exercise_name: "Push-ups"
+                        old_level: 2
+                        new_level: 3
+                        action: "advanced"
+                        reason: "3 consecutive successful completions"
+                        consecutive_completions: 3
+                      - exercise_id: "660e8400-e29b-41d4-a716-446655440001"
+                        exercise_name: "Pull-ups"
+                        old_level: 1
+                        new_level: 1
+                        action: "maintained"
+                        reason: "Mixed performance, needs more practice"
+                        consecutive_completions: 1
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
