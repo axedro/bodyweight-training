@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
@@ -9,9 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog'
 import { useToast } from './ui/use-toast'
 import { Scale, Heart, Moon, Zap, TrendingUp, CheckCircle2, X } from 'lucide-react'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+import { routineService } from '../../lib/routine-service'
 
 interface BiometricData {
   weight?: number
@@ -49,8 +46,6 @@ export function BiometricUpdate({
   
   const [loading, setLoading] = useState(false)
   const [changedFields, setChangedFields] = useState<Set<string>>(new Set())
-  
-  const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
   const { toast } = useToast()
 
   const updateFormData = (field: string, value: string) => {
@@ -74,11 +69,10 @@ export function BiometricUpdate({
     setLoading(true)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('No authenticated user')
-
       // Prepare biometric data with only changed fields
-      const updatedData: any = {}
+      const updatedData: any = {
+        data_source: 'pre_routine'
+      }
       
       if (changedFields.has('weight') && formData.weight) {
         updatedData.weight = parseFloat(formData.weight)
@@ -102,55 +96,16 @@ export function BiometricUpdate({
         updatedData.fatigue_level = parseInt(formData.fatigue_level)
       }
 
-      // If there are changes, save to biometric_snapshots
-      if (Object.keys(updatedData).length > 0) {
-        // Calculate age from profile for snapshot
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('birth_date')
-          .eq('id', user.id)
-          .single()
-
-        const age = profile?.birth_date ? 
-          new Date().getFullYear() - new Date(profile.birth_date).getFullYear() : null
-
-        if (age) updatedData.age = age
-        updatedData.data_source = 'pre_routine'
-
-        // Insert/update biometric snapshot for today
-        const { error } = await supabase
-          .from('biometric_snapshots')
-          .upsert({
-            user_id: user.id,
-            snapshot_date: new Date().toISOString().split('T')[0],
-            ...updatedData
-          })
-
-        if (error) throw error
+      // If there are changes, call the Edge Function
+      if (Object.keys(updatedData).length > 1) { // More than just data_source
+        const result = await routineService.updateBiometrics(updatedData)
 
         toast({
           title: "✅ Datos actualizados",
           description: `${changedFields.size} métrica${changedFields.size > 1 ? 's' : ''} actualizada${changedFields.size > 1 ? 's' : ''}`,
         })
 
-        // Also update profile with current data for algorithm
-        const profileUpdates: any = {}
-        if (updatedData.weight) profileUpdates.weight = updatedData.weight
-        if (updatedData.body_fat_percentage) profileUpdates.body_fat_percentage = updatedData.body_fat_percentage
-        if (updatedData.resting_hr) profileUpdates.resting_hr = updatedData.resting_hr
-        if (updatedData.training_hr_avg) profileUpdates.training_hr_avg = updatedData.training_hr_avg
-        if (updatedData.sleep_hours) profileUpdates.sleep_hours = updatedData.sleep_hours
-        if (updatedData.sleep_quality) profileUpdates.sleep_quality = updatedData.sleep_quality
-        if (updatedData.fatigue_level) profileUpdates.fatigue_level = updatedData.fatigue_level
-
-        if (Object.keys(profileUpdates).length > 0) {
-          await supabase
-            .from('user_profiles')
-            .update(profileUpdates)
-            .eq('id', user.id)
-        }
-
-        onUpdate(updatedData)
+        onUpdate(result.biometric_snapshot)
       } else {
         toast({
           title: "Sin cambios",

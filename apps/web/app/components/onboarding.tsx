@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
@@ -9,9 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useToast } from './ui/use-toast'
 import { Progress } from './ui/progress'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+import { routineService } from '../../lib/routine-service'
 
 interface OnboardingProps {
   user: any
@@ -50,7 +47,6 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
     preferred_intensity: '0.7',
   })
 
-  const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
   const { toast } = useToast()
 
   const totalSteps = 5 // Updated to accommodate biometric fields
@@ -102,41 +98,18 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
       console.log('📝 Starting onboarding for user:', user.id)
       console.log('📝 Form data:', formData)
 
-      // Calculate age from birth_date
-      const birthDate = new Date(formData.birth_date)
-      const today = new Date()
-      const age = today.getFullYear() - birthDate.getFullYear() - 
-        (today.getMonth() < birthDate.getMonth() || 
-         (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate()) ? 1 : 0)
-
-      // Get BMI-based estimates for missing values
-      const weight = parseFloat(formData.weight)
-      const height = parseFloat(formData.height)
-      const bmi = weight / Math.pow(height / 100, 2)
-      
-      // Estimate missing biometric values
-      const estimatedBodyFat = formData.body_fat_percentage ? 
-        parseFloat(formData.body_fat_percentage) : 
-        Math.round((bmi < 18.5 ? 12 : bmi < 25 ? 18 : bmi < 30 ? 25 : 32) + (age - 25) * 0.2)
-      
-      const estimatedRestingHR = formData.resting_hr ? 
-        parseInt(formData.resting_hr) : 
-        Math.round(70 + (age - 30) * 0.5 + (bmi > 28 ? 10 : bmi < 22 ? -5 : 0))
-
-      const profileData = {
-        id: user.id,
-        email: user.email,
+      // Prepare onboarding data for Edge Function
+      const onboardingData = {
         birth_date: formData.birth_date,
-        age: age,
-        weight: weight,
-        height: height,
-        body_fat_percentage: estimatedBodyFat,
-        resting_hr: estimatedRestingHR,
-        training_hr_avg: formData.training_hr_avg ? parseInt(formData.training_hr_avg) : null,
+        weight: parseFloat(formData.weight),
+        height: parseFloat(formData.height),
+        body_fat_percentage: formData.body_fat_percentage ? parseFloat(formData.body_fat_percentage) : undefined,
+        resting_hr: formData.resting_hr ? parseInt(formData.resting_hr) : undefined,
+        training_hr_avg: formData.training_hr_avg ? parseInt(formData.training_hr_avg) : undefined,
         sleep_hours: parseFloat(formData.sleep_hours),
         sleep_quality: parseInt(formData.sleep_quality),
         fatigue_level: parseInt(formData.fatigue_level),
-        fitness_level: formData.fitness_level,
+        fitness_level: formData.fitness_level as 'beginner' | 'intermediate' | 'advanced',
         experience_years: parseInt(formData.experience_years),
         activity_level: formData.activity_level,
         available_days_per_week: parseInt(formData.available_days_per_week),
@@ -144,22 +117,12 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
         preferred_intensity: parseFloat(formData.preferred_intensity),
       }
 
-      console.log('📝 Profile data to save:', profileData)
+      console.log('📝 Onboarding data:', onboardingData)
 
-      // Update the profile (it should already exist from the trigger)
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .update(profileData)
-        .eq('id', user.id)
-        .select()
-        .single()
+      // Call Edge Function to complete onboarding
+      const result = await routineService.completeOnboarding(onboardingData)
 
-      console.log('✅ Update result:', { data: !!data, error })
-
-      if (error) {
-        console.error('❌ Update failed:', error)
-        throw error
-      }
+      console.log('✅ Onboarding result:', result)
 
       toast({
         title: "¡Perfil completado!",
@@ -167,7 +130,7 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
       })
 
       console.log('🎉 Onboarding completed successfully')
-      onComplete(data)
+      onComplete(result.profile)
 
     } catch (error: any) {
       console.error('❌ Onboarding error:', error)

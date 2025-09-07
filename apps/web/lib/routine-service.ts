@@ -139,26 +139,43 @@ export class RoutineService {
   /**
    * Obtiene el historial de entrenamientos del usuario
    */
-  async getTrainingHistory(limit: number = 10): Promise<any[]> {
+  async getTrainingHistory(limit: number = 10, options: {
+    status?: string
+    includeExercises?: boolean
+    includePerformance?: boolean
+    startDate?: string
+    endDate?: string
+  } = {}): Promise<any> {
     try {
-      const { data, error } = await this.supabase
-        .from('training_sessions')
-        .select(`
-          *,
-          session_exercises (
-            *,
-            exercises (*)
-          )
-        `)
-        .eq('status', 'completed')
-        .order('session_date', { ascending: false })
-        .limit(limit)
-
-      if (error) {
-        throw error
+      const { data: { session } } = await this.supabase.auth.getSession()
+      
+      if (!session) {
+        throw new Error('No authenticated session')
       }
 
-      return data || []
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-training-history`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js/2.0.0'
+        },
+        body: JSON.stringify({
+          limit,
+          status: options.status || 'completed',
+          include_exercises: options.includeExercises !== false,
+          include_performance: options.includePerformance || false,
+          start_date: options.startDate,
+          end_date: options.endDate
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get training history')
+      }
+
+      const result = await response.json()
+      return result.training_history || []
     } catch (error) {
       console.error('Error fetching training history:', error)
       throw error
@@ -375,6 +392,72 @@ export class RoutineService {
       }
     } catch (error) {
       console.error('Error analyzing evolution:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Completa el proceso de onboarding del usuario
+   */
+  async completeOnboarding(onboardingData: any): Promise<any> {
+    try {
+      const { data: { session } } = await this.supabase.auth.getSession()
+      
+      if (!session) {
+        throw new Error('No authenticated session')
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/complete-onboarding`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js/2.0.0'
+        },
+        body: JSON.stringify(onboardingData)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to complete onboarding')
+      }
+
+      const result = await response.json()
+      return result
+    } catch (error) {
+      console.error('Error completing onboarding:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Actualiza datos biométricos del usuario
+   */
+  async updateBiometrics(biometricData: any): Promise<any> {
+    try {
+      const { data: { session } } = await this.supabase.auth.getSession()
+      
+      if (!session) {
+        throw new Error('No authenticated session')
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/update-biometrics`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'X-Client-Info': 'supabase-js/2.0.0'
+        },
+        body: JSON.stringify(biometricData)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update biometrics')
+      }
+
+      const result = await response.json()
+      return result
+    } catch (error) {
+      console.error('Error updating biometrics:', error)
       throw error
     }
   }

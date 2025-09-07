@@ -71,6 +71,10 @@ tags:
     description: Manage biometric data and historical tracking
   - name: Progressions
     description: Update and manage exercise progressions
+  - name: User Management
+    description: User onboarding and profile management
+  - name: Training History
+    description: Retrieve and analyze training history data
 
 components:
   securitySchemes:
@@ -527,6 +531,270 @@ components:
           sessions_count: 3
         imbalance_score: 15.0
         recommendations: ["Increase quad-focused exercises", "Balance with hamstring work"]
+
+    OnboardingRequest:
+      type: object
+      properties:
+        birth_date:
+          type: string
+          format: date
+          description: User's birth date (YYYY-MM-DD)
+        weight:
+          type: number
+          format: float
+          minimum: 30
+          maximum: 200
+          description: Weight in kg
+        height:
+          type: number
+          format: float
+          minimum: 100
+          maximum: 250
+          description: Height in cm
+        body_fat_percentage:
+          type: number
+          format: float
+          minimum: 5
+          maximum: 50
+          description: Body fat percentage (optional)
+        resting_hr:
+          type: integer
+          minimum: 40
+          maximum: 120
+          description: Resting heart rate in BPM (optional)
+        training_hr_avg:
+          type: integer
+          minimum: 80
+          maximum: 200
+          description: Average training heart rate (optional)
+        sleep_hours:
+          type: number
+          format: float
+          minimum: 4
+          maximum: 12
+          description: Average sleep hours per night
+        sleep_quality:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Sleep quality rating (1-5)
+        fatigue_level:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Current fatigue level (1-5)
+        fitness_level:
+          type: string
+          enum: [beginner, intermediate, advanced]
+          description: Self-assessed fitness level
+        experience_years:
+          type: integer
+          minimum: 0
+          maximum: 50
+          description: Years of training experience
+        activity_level:
+          type: string
+          enum: [sedentary, light, moderate, active, very_active]
+          description: Daily activity level
+        available_days_per_week:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: Days available for training per week
+        preferred_session_duration:
+          type: integer
+          minimum: 15
+          maximum: 120
+          description: Preferred session duration in minutes
+        preferred_intensity:
+          type: number
+          format: float
+          minimum: 0.1
+          maximum: 1.0
+          description: Preferred training intensity (0.1-1.0)
+      required:
+        - birth_date
+        - weight
+        - height
+        - sleep_hours
+        - sleep_quality
+        - fatigue_level
+        - fitness_level
+        - experience_years
+        - activity_level
+        - available_days_per_week
+        - preferred_session_duration
+        - preferred_intensity
+      example:
+        birth_date: "1995-06-15"
+        weight: 75.0
+        height: 180.0
+        body_fat_percentage: 18.0
+        resting_hr: 65
+        sleep_hours: 7.5
+        sleep_quality: 4
+        fatigue_level: 2
+        fitness_level: "intermediate"
+        experience_years: 3
+        activity_level: "moderate"
+        available_days_per_week: 4
+        preferred_session_duration: 45
+        preferred_intensity: 0.7
+
+    BiometricUpdateRequest:
+      type: object
+      properties:
+        weight:
+          type: number
+          format: float
+          minimum: 30
+          maximum: 200
+          description: Weight in kg
+        body_fat_percentage:
+          type: number
+          format: float
+          minimum: 5
+          maximum: 50
+          description: Body fat percentage
+        resting_hr:
+          type: integer
+          minimum: 40
+          maximum: 120
+          description: Resting heart rate in BPM
+        training_hr_avg:
+          type: integer
+          minimum: 80
+          maximum: 200
+          description: Average training heart rate
+        hrv_trend:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          description: HRV trend indicator
+        sleep_hours:
+          type: number
+          format: float
+          minimum: 4
+          maximum: 12
+          description: Hours of sleep
+        sleep_quality:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Sleep quality (1-5)
+        fatigue_level:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Fatigue level (1-5)
+        data_source:
+          type: string
+          enum: [manual, pre_routine, automatic]
+          default: manual
+          description: Source of the biometric data
+        notes:
+          type: string
+          description: Optional notes about the measurements
+      example:
+        weight: 76.2
+        sleep_hours: 7.0
+        sleep_quality: 3
+        fatigue_level: 4
+        data_source: "pre_routine"
+        notes: "Feeling tired after late night"
+
+    TrainingHistoryRequest:
+      type: object
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Maximum number of sessions to return
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Number of sessions to skip (pagination)
+        status:
+          type: string
+          enum: [planned, in_progress, completed, skipped]
+          description: Filter by session status
+        start_date:
+          type: string
+          format: date
+          description: Filter sessions after this date
+        end_date:
+          type: string
+          format: date
+          description: Filter sessions before this date
+        include_exercises:
+          type: boolean
+          default: false
+          description: Include detailed exercise data
+        include_performance:
+          type: boolean
+          default: false
+          description: Include performance metrics
+      example:
+        limit: 10
+        offset: 0
+        status: "completed"
+        include_exercises: true
+        include_performance: true
+
+    TrainingSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Session ID
+        date:
+          type: string
+          format: date
+          description: Session date
+        status:
+          type: string
+          enum: [planned, in_progress, completed, skipped]
+          description: Session status
+        duration_minutes:
+          type: integer
+          description: Session duration
+        intensity:
+          type: number
+          format: float
+          description: Session intensity
+        rpe_reported:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Reported RPE
+        completion_rate:
+          type: number
+          format: float
+          description: Completion rate (0-1)
+        technical_quality:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Technical quality rating
+        exercises:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExerciseBlock'
+          description: Session exercises (if requested)
+        performance:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExercisePerformance'
+          description: Performance data (if requested)
+      required:
+        - id
+        - date
+        - status
 
     EvolutionAnalysis:
       type: object
@@ -1467,6 +1735,257 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /complete-onboarding:
+    post:
+      tags:
+        - User Management
+      summary: Complete User Onboarding
+      description: |
+        Completes the user onboarding process by updating the user profile with comprehensive 
+        fitness and training preferences data. This endpoint:
+        
+        - Updates user profile with all onboarding data
+        - Calculates BMI and age automatically
+        - Estimates initial biometric values based on fitness profile
+        - Creates first biometric snapshot for historical tracking
+        - Prepares user for adaptive algorithm calculations
+        
+        This replaces all frontend business logic for onboarding completion.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingRequest'
+      responses:
+        '200':
+          description: Successfully completed onboarding
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Onboarding completed successfully"
+                  profile:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      age:
+                        type: integer
+                      bmi:
+                        type: number
+                        format: float
+                      fitness_level:
+                        type: string
+                      experience_years:
+                        type: integer
+                  biometric_snapshot:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      weight:
+                        type: number
+                        format: float
+                      sleep_hours:
+                        type: number
+                        format: float
+                      sleep_quality:
+                        type: integer
+                      fatigue_level:
+                        type: integer
+                required:
+                  - success
+                  - message
+                  - profile
+        '400':
+          description: Invalid onboarding data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /update-biometrics:
+    post:
+      tags:
+        - Biometrics
+      summary: Update Biometric Data
+      description: |
+        Updates user biometric data with comprehensive validation and historical tracking.
+        This endpoint:
+        
+        - Validates all biometric inputs with proper ranges
+        - Creates new biometric snapshot with timestamp
+        - Tracks data source (manual, pre-routine, automatic)
+        - Calculates derived metrics (BMI when weight/height available)
+        - Maintains full historical record for trend analysis
+        
+        Only non-null fields in the request will be updated, allowing partial updates.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BiometricUpdateRequest'
+      responses:
+        '200':
+          description: Successfully updated biometric data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Biometric data updated successfully"
+                  biometric_snapshot:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      weight:
+                        type: number
+                        format: float
+                      sleep_hours:
+                        type: number
+                        format: float
+                      sleep_quality:
+                        type: integer
+                      fatigue_level:
+                        type: integer
+                      data_source:
+                        type: string
+                      created_at:
+                        type: string
+                        format: date-time
+                required:
+                  - success
+                  - message
+                  - biometric_snapshot
+        '400':
+          description: Invalid biometric data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /get-training-history:
+    post:
+      tags:
+        - Training History
+      summary: Get Training History
+      description: |
+        Retrieves comprehensive training history with flexible filtering and pagination.
+        This endpoint:
+        
+        - Supports pagination with limit/offset
+        - Filters by session status, date range
+        - Optionally includes detailed exercise and performance data
+        - Provides statistics and summary information
+        - Replaces all frontend database queries for training history
+        
+        Perfect for displaying training logs, progress analysis, and historical data review.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainingHistoryRequest'
+      responses:
+        '200':
+          description: Successfully retrieved training history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TrainingSession'
+                    description: Array of training sessions
+                  total_count:
+                    type: integer
+                    description: Total sessions matching criteria
+                  statistics:
+                    type: object
+                    properties:
+                      total_sessions:
+                        type: integer
+                        description: Total number of sessions
+                      completed_sessions:
+                        type: integer
+                        description: Number of completed sessions
+                      completion_rate:
+                        type: number
+                        format: float
+                        description: Overall completion rate
+                      average_duration:
+                        type: number
+                        format: float
+                        description: Average session duration
+                      average_rpe:
+                        type: number
+                        format: float
+                        description: Average RPE
+                      streak_current:
+                        type: integer
+                        description: Current training streak
+                      streak_best:
+                        type: integer
+                        description: Best training streak
+                required:
+                  - sessions
+                  - total_count
+                  - statistics
         '401':
           description: Unauthorized
           content:
