@@ -32,10 +32,10 @@ serve(async (req) => {
       )
     }
 
-    // Get user profile
+    // Get user profile (basic info only)
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('*')
+      .select('id, email, fitness_level, experience_years, available_days_per_week, preferred_session_duration, preferred_intensity, age')
       .eq('id', user.id)
       .single()
 
@@ -44,6 +44,65 @@ serve(async (req) => {
         JSON.stringify({ error: 'User profile not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // Get latest biometric data using the same logic as get-latest-biometrics
+    let biometricData = {}
+    
+    // Try to get latest biometrics from snapshots first
+    const { data: latestBiometrics, error: biometricsError } = await supabase
+      .rpc('get_latest_biometrics', { user_uuid: user.id })
+
+    if (biometricsError || !latestBiometrics || latestBiometrics.length === 0) {
+      console.log('📊 No biometric snapshots found, falling back to user profile')
+      // Fallback to user profile if no biometric snapshots exist
+      const { data: profileBiometrics, error: profileBiometricsError } = await supabase
+        .from('user_profiles')
+        .select('weight, height, body_fat_percentage, resting_hr, training_hr_avg, sleep_hours, sleep_quality, fatigue_level, updated_at')
+        .eq('id', user.id)
+        .single()
+
+      if (profileBiometricsError) {
+        console.error('❌ Error getting profile biometrics:', profileBiometricsError)
+        biometricData = {}
+      } else {
+        biometricData = {
+          weight: profileBiometrics.weight,
+          height: profileBiometrics.height,
+          body_fat_percentage: profileBiometrics.body_fat_percentage,
+          resting_hr: profileBiometrics.resting_hr,
+          training_hr_avg: profileBiometrics.training_hr_avg,
+          sleep_hours: profileBiometrics.sleep_hours,
+          sleep_quality: profileBiometrics.sleep_quality,
+          fatigue_level: profileBiometrics.fatigue_level,
+          last_updated: profileBiometrics.updated_at
+        }
+        console.log('📊 Using profile biometrics as fallback')
+      }
+    } else {
+      // Use latest biometric snapshot data
+      const latestData = latestBiometrics[0]
+      biometricData = {
+        weight: latestData.weight,
+        height: latestData.height,
+        body_fat_percentage: latestData.body_fat_percentage,
+        resting_hr: latestData.resting_hr,
+        training_hr_avg: latestData.training_hr_avg,
+        sleep_hours: latestData.sleep_hours,
+        sleep_quality: latestData.sleep_quality,
+        fatigue_level: latestData.fatigue_level,
+        age: latestData.age,
+        bmi: latestData.bmi,
+        last_updated: latestData.snapshot_date,
+        days_old: latestData.days_old
+      }
+      console.log(`📊 Using biometric snapshot from ${latestData.days_old} days ago`)
+    }
+
+    // Merge profile with biometric data for algorithm
+    const enrichedProfile = {
+      ...profile,
+      ...biometricData
     }
 
     // Get user's current progressions
@@ -95,7 +154,7 @@ serve(async (req) => {
     const algorithm = new AdaptiveTrainingAlgorithm()
     
     const icaData = algorithm.calculateICA({
-      profile,
+      profile: enrichedProfile,
       progressions: progressions || [],
       recentSessions: recentSessions || [],
       wellnessLogs: wellnessLogs || []
@@ -148,7 +207,15 @@ serve(async (req) => {
         recent_performance: icaData.recent_performance,
         user_state: icaData.user_state,
         recommendations: icaData.recommendations,
-        calculation_date: new Date().toISOString()
+        calculation_date: new Date().toISOString(),
+        biometric_data_used: {
+          source: biometricsError || !latestBiometrics || latestBiometrics.length === 0 ? 'user_profile' : 'biometric_snapshots',
+          last_updated: biometricData.last_updated,
+          days_old: biometricData.days_old || null,
+          weight: biometricData.weight,
+          sleep_quality: biometricData.sleep_quality,
+          fatigue_level: biometricData.fatigue_level
+        }
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
