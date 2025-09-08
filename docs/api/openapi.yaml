@@ -641,6 +641,107 @@ components:
         preferred_session_duration: 45
         preferred_intensity: 0.7
 
+    OnboardingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Onboarding completed successfully"
+        user_profile:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            age:
+              type: integer
+            weight:
+              type: number
+              format: float
+            height:
+              type: number
+              format: float
+            fitness_level:
+              type: string
+            experience_years:
+              type: integer
+        calculated_values:
+          type: object
+          properties:
+            age:
+              type: integer
+              description: Calculated age from birth_date
+            bmi:
+              type: number
+              format: float
+              description: Calculated BMI
+            bmi_category:
+              type: string
+              enum: [underweight, normal, overweight, obese]
+              description: BMI category classification
+        biometric_snapshot:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            user_id:
+              type: string
+              format: uuid
+            weight:
+              type: number
+              format: float
+            body_fat_percentage:
+              type: number
+              format: float
+            bmi:
+              type: number
+              format: float
+            sleep_hours:
+              type: number
+              format: float
+            sleep_quality:
+              type: integer
+            fatigue_level:
+              type: integer
+            data_source:
+              type: string
+            recorded_at:
+              type: string
+              format: date-time
+      required:
+        - success
+        - message
+        - user_profile
+        - calculated_values
+      example:
+        success: true
+        message: "Onboarding completed successfully"
+        user_profile:
+          id: "c55fbe03-6bf8-4efb-a156-21e12a15010f"
+          email: "user@bodyweight.com"
+          age: 30
+          weight: 75.0
+          height: 180.0
+          fitness_level: "intermediate"
+        calculated_values:
+          age: 30
+          bmi: 23.1
+          bmi_category: "normal"
+        biometric_snapshot:
+          id: "uuid-v4"
+          user_id: "c55fbe03-6bf8-4efb-a156-21e12a15010f"
+          weight: 75.0
+          body_fat_percentage: 18.0
+          bmi: 23.1
+          recorded_at: "2025-01-08T19:00:00Z"
+
     BiometricUpdateRequest:
       type: object
       properties:
@@ -744,6 +845,155 @@ components:
         status: "completed"
         include_exercises: true
         include_performance: true
+
+    BiometricUpdateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Biometric data updated successfully"
+        updated_fields:
+          type: array
+          items:
+            type: string
+          description: List of fields that were updated
+        biometric_snapshot:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            user_id:
+              type: string
+              format: uuid
+            weight:
+              type: number
+              format: float
+            body_fat_percentage:
+              type: number
+              format: float
+            resting_hr:
+              type: integer
+            training_hr_avg:
+              type: integer
+            hrv_trend:
+              type: number
+              format: float
+            sleep_hours:
+              type: number
+              format: float
+            sleep_quality:
+              type: integer
+            fatigue_level:
+              type: integer
+            bmi:
+              type: number
+              format: float
+              description: Calculated BMI if weight/height available
+            data_source:
+              type: string
+              enum: [manual, pre_routine, automatic]
+            notes:
+              type: string
+            recorded_at:
+              type: string
+              format: date-time
+      required:
+        - success
+        - message
+        - biometric_snapshot
+      example:
+        success: true
+        message: "Biometric data updated successfully"
+        updated_fields: ["weight", "sleep_hours", "fatigue_level"]
+        biometric_snapshot:
+          id: "uuid-v4"
+          user_id: "c55fbe03-6bf8-4efb-a156-21e12a15010f"
+          weight: 76.5
+          sleep_hours: 7.0
+          fatigue_level: 3
+          bmi: 23.6
+          data_source: "pre_routine"
+          recorded_at: "2025-01-08T19:30:00Z"
+
+    TrainingHistoryResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainingSession'
+          description: Array of training sessions matching criteria
+        pagination:
+          type: object
+          properties:
+            total:
+              type: integer
+              description: Total sessions matching filters
+            limit:
+              type: integer
+              description: Requested limit
+            offset:
+              type: integer
+              description: Current offset
+            has_more:
+              type: boolean
+              description: Whether more results are available
+        statistics:
+          type: object
+          properties:
+            total_sessions:
+              type: integer
+              description: Total number of sessions for user
+            completed_sessions:
+              type: integer
+              description: Number of completed sessions
+            completion_rate:
+              type: number
+              format: float
+              description: Overall completion rate (0-1)
+            avg_duration:
+              type: number
+              format: float
+              description: Average session duration in minutes
+            avg_rpe:
+              type: number
+              format: float
+              description: Average RPE across sessions
+            current_streak:
+              type: integer
+              description: Current consecutive training days
+            best_streak:
+              type: integer
+              description: Best streak achieved
+      required:
+        - sessions
+        - pagination
+        - statistics
+      example:
+        sessions:
+          - id: "uuid-v4"
+            date: "2025-01-08"
+            status: "completed"
+            completion_percentage: 95
+            duration_minutes: 42
+            rpe_reported: 7
+        pagination:
+          total: 45
+          limit: 20
+          offset: 0
+          has_more: true
+        statistics:
+          total_sessions: 45
+          completed_sessions: 42
+          completion_rate: 0.933
+          avg_duration: 38.5
+          avg_rpe: 6.8
+          current_streak: 5
+          best_streak: 12
 
     TrainingSession:
       type: object
@@ -914,6 +1164,28 @@ components:
           score: 0.75
           classification: "Bueno"
           recommendations: ["Continue current routine", "Focus on consistency"]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        message:
+          type: string
+          description: Detailed error description
+        details:
+          type: object
+          description: Additional error details
+      required:
+        - error
+      example:
+        error: "Validation failed"
+        message: "Invalid birth_date format"
+        details:
+          field: "birth_date"
+          expected: "YYYY-MM-DD"
+          received: "invalid-date"
 
 security:
   - BearerAuth: []
