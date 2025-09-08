@@ -47,7 +47,7 @@ serve(async (req) => {
     }
 
     // Get latest biometric data using the same logic as get-latest-biometrics
-    let biometricData = {}
+    let biometricData: any = {}
     
     // Try to get latest biometrics from snapshots first
     const { data: latestBiometrics, error: biometricsError } = await supabase
@@ -160,7 +160,42 @@ serve(async (req) => {
       wellnessLogs: wellnessLogs || []
     })
 
-    // Update algorithm state in database
+    // Save historical algorithm state for temporal analysis
+    const calculationDate = new Date().toISOString().split('T')[0]
+    const { error: historyError } = await supabase
+      .from('algorithm_state_history')
+      .upsert({
+        user_id: user.id,
+        calculation_date: calculationDate,
+        current_ica: icaData.ica_score,
+        recovery_factor: icaData.recovery_factor,
+        adherence_factor: icaData.adherence_rate,
+        progression_factor: icaData.progression_velocity,
+        detraining_factor: icaData.detraining_factor,
+        
+        // Biometric context
+        biometric_data_source: biometricsError || !latestBiometrics || latestBiometrics.length === 0 ? 'profile' : 'snapshots',
+        biometric_age_days: biometricData.days_old || null,
+        biometric_weight: biometricData.weight || null,
+        biometric_sleep_quality: biometricData.sleep_quality || null,
+        biometric_fatigue_level: biometricData.fatigue_level || null,
+        
+        // Algorithm context
+        sessions_analyzed: recentSessions?.length || 0,
+        wellness_logs_count: wellnessLogs?.length || 0,
+        progressions_count: progressions?.length || 0
+      }, {
+        onConflict: 'user_id, calculation_date'
+      })
+
+    if (historyError) {
+      console.error('⚠️ Error saving algorithm history:', historyError)
+      // Continue anyway - this is not critical for core functionality
+    } else {
+      console.log(`📊 Algorithm state history saved for ${calculationDate}`)
+    }
+
+    // Update current algorithm state (for backward compatibility)
     const { error: algorithmError } = await supabase
       .from('algorithm_state')
       .upsert({
@@ -215,6 +250,13 @@ serve(async (req) => {
           weight: biometricData.weight,
           sleep_quality: biometricData.sleep_quality,
           fatigue_level: biometricData.fatigue_level
+        },
+        historical_tracking: {
+          enabled: true,
+          saved_to_history: !historyError,
+          calculation_date: calculationDate,
+          sessions_analyzed: recentSessions?.length || 0,
+          progressions_tracked: progressions?.length || 0
         }
       }),
       {
