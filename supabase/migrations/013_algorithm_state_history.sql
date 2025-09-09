@@ -8,6 +8,8 @@ CREATE TABLE public.algorithm_state_history (
   adherence_factor DECIMAL(3,2),
   progression_factor DECIMAL(3,2),
   detraining_factor DECIMAL(3,2) DEFAULT 1.0,
+  current_fitness_score DECIMAL(3,2),
+  last_training_date DATE,
   
   -- Biometric data context
   biometric_data_source TEXT CHECK (biometric_data_source IN ('snapshots', 'profile')),
@@ -56,6 +58,8 @@ SELECT DISTINCT ON (user_id)
   adherence_factor,
   progression_factor,
   detraining_factor,
+  current_fitness_score,
+  last_training_date,
   biometric_data_source,
   biometric_age_days,
   created_at

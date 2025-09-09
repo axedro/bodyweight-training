@@ -172,6 +172,8 @@ serve(async (req) => {
         adherence_factor: icaData.adherence_rate,
         progression_factor: icaData.progression_velocity,
         detraining_factor: icaData.detraining_factor,
+        current_fitness_score: icaData.user_state.current_fitness_level,
+        last_training_date: icaData.user_state.last_training_date,
         
         // Biometric context
         biometric_data_source: biometricsError || !latestBiometrics || latestBiometrics.length === 0 ? 'profile' : 'snapshots',
@@ -215,21 +217,10 @@ serve(async (req) => {
       // Continue anyway - this is not critical
     }
 
-    // Update user profile with latest metrics
-    const { error: profileUpdateError } = await supabase
-      .from('user_profiles')
-      .update({
-        current_fitness_score: icaData.user_state.current_fitness_level,
-        adherence_rate: icaData.adherence_rate,
-        last_training_date: icaData.user_state.last_training_date,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', user.id)
-
-    if (profileUpdateError) {
-      console.error('Error updating user profile:', profileUpdateError)
-      // Continue anyway - this is not critical
-    }
+    // NOTE: We no longer update user_profiles with derived metrics
+    // All algorithm-derived data is stored in algorithm_state_history for consistency
+    // Frontend should read latest fitness metrics from latest_algorithm_states view
+    console.log('📊 Derived metrics stored in algorithm_state_history only')
 
     return new Response(
       JSON.stringify({
@@ -257,7 +248,8 @@ serve(async (req) => {
           calculation_date: calculationDate,
           sessions_analyzed: recentSessions?.length || 0,
           progressions_tracked: progressions?.length || 0
-        }
+        },
+        architectural_note: "Derived metrics (fitness_score, adherence_rate, last_training_date) are stored in algorithm_state_history only. Frontend should use latest_algorithm_states view."
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
