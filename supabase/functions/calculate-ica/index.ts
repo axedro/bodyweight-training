@@ -150,14 +150,28 @@ serve(async (req) => {
       .gte('log_date', fourWeeksAgo.toISOString().split('T')[0])
       .order('log_date', { ascending: false })
 
-    // Initialize algorithm and calculate ICA
+    // ✨ NUEVO: Get algorithm history for temporal analysis (last 30 days)
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    
+    const { data: algorithmHistory } = await supabase
+      .from('algorithm_state_history')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('calculation_date', thirtyDaysAgo.toISOString().split('T')[0])
+      .order('calculation_date', { ascending: false })
+
+    console.log(`📊 Found ${algorithmHistory?.length || 0} algorithm history entries for temporal analysis`)
+
+    // Initialize algorithm and calculate ICA with temporal context
     const algorithm = new AdaptiveTrainingAlgorithm()
     
     const icaData = algorithm.calculateICA({
       profile: enrichedProfile,
       progressions: progressions || [],
       recentSessions: recentSessions || [],
-      wellnessLogs: wellnessLogs || []
+      wellnessLogs: wellnessLogs || [],
+      algorithmHistory: algorithmHistory || []  // ✨ NUEVO: Historial temporal
     })
 
     // Save historical algorithm state for temporal analysis

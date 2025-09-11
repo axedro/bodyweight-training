@@ -3,6 +3,7 @@ export interface UserProfile {
   age?: number
   weight?: number
   height?: number
+  body_fat_percentage?: number
   fitness_level: 'beginner' | 'intermediate' | 'advanced'
   experience_years: number
   available_days_per_week: number
@@ -14,6 +15,9 @@ export interface UserProfile {
   sleep_quality?: number
   sleep_hours?: number
   fatigue_level?: number
+  resting_hr?: number
+  training_hr_avg?: number
+  hrv_trend?: number
 }
 
 export interface Exercise {
@@ -95,6 +99,25 @@ export interface TrainingPlan {
   recommendations: string[]
 }
 
+export interface AlgorithmStateHistory {
+  id: string
+  user_id: string
+  calculation_date: string
+  current_ica: number
+  recovery_factor: number
+  adherence_factor: number
+  progression_factor: number
+  detraining_factor: number
+  current_fitness_score: number
+  last_training_date?: string
+  biometric_data_source: 'snapshots' | 'profile'
+  biometric_age_days?: number
+  sessions_analyzed: number
+  wellness_logs_count: number
+  progressions_count: number
+  created_at: string
+}
+
 export interface MuscleGroupMetrics {
   id: string
   user_id: string
@@ -137,6 +160,19 @@ export interface ICAData {
     days_since_last_training?: number
   }
   recommendations: string[]
+  // ✨ NUEVO: Información temporal
+  temporal_context?: {
+    has_previous_calculations: boolean
+    trend: 'improving' | 'stable' | 'declining'
+    volatility: number
+    stability_factor: number
+    trend_adjustment: number
+    last_ica?: number
+    average_ica?: number
+    days_since_last_calculation: number
+    raw_ica_score: number
+    temporal_adjustments_applied: boolean
+  }
 }
 
 export class AdaptiveTrainingAlgorithm {
@@ -197,13 +233,129 @@ export class AdaptiveTrainingAlgorithm {
     return completedSessions.length < this.NEW_USER_THRESHOLD_SESSIONS
   }
 
+  /**
+   * ✨ NUEVO: Analiza el contexto temporal del historial del algoritmo
+   * Detecta tendencias, patrones y proporciona suavizado de fluctuaciones
+   */
+  private analyzeTemporalContext(history: AlgorithmStateHistory[]) {
+    if (history.length === 0) {
+      return {
+        hasPreviousCalculations: false,
+        trend: 'stable' as const,
+        volatility: 0,
+        stabilityFactor: 1.0,
+        trendAdjustment: 0,
+        lastICA: null,
+        averageICA: null,
+        daysSinceLastCalculation: Infinity
+      }
+    }
+
+    // Ordenar por fecha (más reciente primero)
+    const sortedHistory = [...history].sort((a, b) => 
+      new Date(b.calculation_date).getTime() - new Date(a.calculation_date).getTime()
+    )
+
+    const lastEntry = sortedHistory[0]
+    const lastICA = lastEntry.current_ica
+    
+    // Calcular días desde la última calculación
+    const daysSinceLastCalculation = Math.floor(
+      (Date.now() - new Date(lastEntry.calculation_date).getTime()) / (24 * 60 * 60 * 1000)
+    )
+
+    // Análisis de tendencia (últimas 4-6 entradas o 2 semanas)
+    const recentEntries = sortedHistory.slice(0, Math.min(6, sortedHistory.length))
+    const twoWeeksAgo = new Date()
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
+    
+    const recentEntriesLast2Weeks = recentEntries.filter(entry => 
+      new Date(entry.calculation_date) >= twoWeeksAgo
+    )
+
+    if (recentEntriesLast2Weeks.length >= 3) {
+      const values = recentEntriesLast2Weeks.map(e => e.current_ica).reverse() // Cronológicamente
+      const trend = this.calculateTrend(values)
+      const volatility = this.calculateVolatility(values)
+      
+      // Factor de estabilidad: penaliza ICA muy volátiles
+      const stabilityFactor = Math.max(0.7, 1.0 - volatility * 0.5)
+      
+      // Ajuste de tendencia: suaviza cambios bruscos
+      let trendAdjustment = 0
+      if (trend === 'improving') {
+        trendAdjustment = Math.min(0.15, volatility < 0.3 ? 0.15 : 0.05) // Menos bonus si es volátil
+      } else if (trend === 'declining') {
+        trendAdjustment = Math.max(-0.10, volatility < 0.3 ? -0.10 : -0.05) // Menos penalti si es volátil
+      }
+
+      return {
+        hasPreviousCalculations: true,
+        trend,
+        volatility,
+        stabilityFactor,
+        trendAdjustment,
+        lastICA,
+        averageICA: values.reduce((sum, val) => sum + val, 0) / values.length,
+        daysSinceLastCalculation
+      }
+    }
+
+    // Análisis básico para pocos datos
+    const averageICA = recentEntries.reduce((sum, e) => sum + e.current_ica, 0) / recentEntries.length
+
+    return {
+      hasPreviousCalculations: true,
+      trend: 'stable' as const,
+      volatility: 0.2, // Asumido moderado
+      stabilityFactor: 0.9,
+      trendAdjustment: 0,
+      lastICA,
+      averageICA,
+      daysSinceLastCalculation
+    }
+  }
+
+  /**
+   * Calcula la tendencia de una serie de valores ICA
+   */
+  private calculateTrend(values: number[]): 'improving' | 'stable' | 'declining' {
+    if (values.length < 3) return 'stable'
+    
+    const recent = values.slice(-3) // Últimos 3 valores
+    const older = values.slice(0, -2) // Valores anteriores
+    
+    const recentAvg = recent.reduce((sum, val) => sum + val, 0) / recent.length
+    const olderAvg = older.reduce((sum, val) => sum + val, 0) / older.length
+    
+    const change = (recentAvg - olderAvg) / olderAvg
+    
+    if (change > 0.08) return 'improving'  // >8% mejora
+    if (change < -0.08) return 'declining' // >8% decline
+    return 'stable'
+  }
+
+  /**
+   * Calcula la volatilidad de una serie de valores ICA
+   */
+  private calculateVolatility(values: number[]): number {
+    if (values.length < 2) return 0
+    
+    const mean = values.reduce((sum, val) => sum + val, 0) / values.length
+    const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length
+    const standardDeviation = Math.sqrt(variance)
+    
+    return standardDeviation / mean // Coefficient of variation
+  }
+
   calculateICA(data: {
     profile: UserProfile
     progressions: UserExerciseProgression[]
     recentSessions: TrainingSession[]
     wellnessLogs: any[]
+    algorithmHistory?: AlgorithmStateHistory[]  // ✨ NUEVO: Historial del algoritmo
   }): ICAData {
-    const { profile, recentSessions } = data
+    const { profile, recentSessions, algorithmHistory } = data
     
     // Check if user is new and needs special handling
     const isNew = this.isNewUser(recentSessions)
@@ -212,6 +364,9 @@ export class AdaptiveTrainingAlgorithm {
     if (recentSessions.length === 0) {
       return this.generateNewUserICA(profile)
     }
+    
+    // ✨ NUEVO: Análisis temporal del historial del algoritmo
+    const temporalContext = this.analyzeTemporalContext(algorithmHistory || [])
     
     // Calculate adherence rate (last 4 weeks)
     const fourWeeksAgo = new Date()
@@ -276,19 +431,60 @@ export class AdaptiveTrainingAlgorithm {
     const fitness_level_multiplier = this.FITNESS_LEVELS[profile.fitness_level] || 1.0
     const base_fitness = dynamic_fitness_score / 10
 
-    // Final ICA calculation
-    const ica_score = Math.max(
+    // ✨ NUEVO: Cálculo ICA temporally-aware
+    const raw_ica = Math.max(
       (base_fitness * fitness_level_multiplier * adherence_rate * recovery_factor * progression_velocity) / detraining_factor,
       0.1
     )
 
-    // Generate recommendations
+    // Aplicar análisis temporal para suavizado y ajustes
+    let temporal_ica = raw_ica
+    
+    if (temporalContext.hasPreviousCalculations) {
+      // Factor de estabilidad para suavizar fluctuaciones bruscas
+      temporal_ica *= temporalContext.stabilityFactor
+      
+      // Ajuste basado en tendencia histórica
+      temporal_ica += temporalContext.trendAdjustment
+      
+      // Suavizado con ICA previo (peso 30% historico, 70% actual para adaptabilidad)
+      if (temporalContext.lastICA && temporalContext.daysSinceLastCalculation <= 7) {
+        const smoothingWeight = 0.3 // 30% peso al ICA anterior
+        temporal_ica = (temporal_ica * (1 - smoothingWeight)) + (temporalContext.lastICA * smoothingWeight)
+      }
+      
+      // Prevención de cambios extremos (máximo ±25% por día)
+      if (temporalContext.lastICA && temporalContext.daysSinceLastCalculation <= 3) {
+        const maxChange = 0.25 * temporalContext.daysSinceLastCalculation / 3 // Escalado por días
+        const change = (temporal_ica - temporalContext.lastICA) / temporalContext.lastICA
+        
+        if (Math.abs(change) > maxChange) {
+          const clampedChange = Math.sign(change) * maxChange
+          temporal_ica = temporalContext.lastICA * (1 + clampedChange)
+        }
+      }
+    }
+
+    const ica_score = Math.max(temporal_ica, 0.1)
+
+    // Generate enhanced recommendations with temporal awareness
     const recommendations: string[] = []
     if (adherence_rate < 0.6) recommendations.push("Aumenta la consistencia en tus entrenamientos")
     if (recovery_factor < 0.6) recommendations.push("Mejora tu calidad de sueño y manejo del estrés")
     if (avg_rpe > 8) recommendations.push("Reduce la intensidad para evitar sobreentrenamiento")
     if (avg_completion_rate < 0.7) recommendations.push("Ajusta la dificultad de los ejercicios")
     if (days_since_last > 7) recommendations.push("Retoma tu rutina de entrenamiento gradualmente")
+
+    // ✨ NUEVO: Recomendaciones temporales
+    if (temporalContext.trend === 'declining' && temporalContext.volatility > 0.4) {
+      recommendations.push("Patrón de decline detectado - considera reducir temporalmente la intensidad")
+    }
+    if (temporalContext.trend === 'improving' && temporalContext.volatility < 0.2) {
+      recommendations.push("Progreso estable detectado - considera incrementar gradualmente el desafío")
+    }
+    if (temporalContext.volatility > 0.5) {
+      recommendations.push("Rendimiento inconsistente - enfócate en la regularidad del entrenamiento")
+    }
 
     // Apply safety factor for new users
     const final_ica = isNew ? ica_score * this.NEW_USER_SAFETY_FACTOR : ica_score
@@ -311,7 +507,20 @@ export class AdaptiveTrainingAlgorithm {
         last_training_date: last_session?.session_date,
         days_since_last_training: days_since_last
       },
-      recommendations
+      recommendations,
+      // ✨ NUEVO: Información temporal
+      temporal_context: {
+        has_previous_calculations: temporalContext.hasPreviousCalculations,
+        trend: temporalContext.trend,
+        volatility: temporalContext.volatility,
+        stability_factor: temporalContext.stabilityFactor,
+        trend_adjustment: temporalContext.trendAdjustment,
+        last_ica: temporalContext.lastICA || undefined,
+        average_ica: temporalContext.averageICA || undefined,
+        days_since_last_calculation: temporalContext.daysSinceLastCalculation,
+        raw_ica_score: Math.round(raw_ica * 100) / 100,
+        temporal_adjustments_applied: temporalContext.hasPreviousCalculations
+      }
     }
   }
 

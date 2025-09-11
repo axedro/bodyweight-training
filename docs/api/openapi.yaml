@@ -368,6 +368,59 @@ components:
               type: number
               format: float
               description: Average technical quality
+        temporal_context:
+          type: object
+          description: "🆕 NEW: Temporal analysis context for intelligent ICA adjustments"
+          properties:
+            has_previous_calculations:
+              type: boolean
+              description: Whether user has algorithm calculation history
+              example: true
+            trend:
+              type: string
+              enum: ["improving", "stable", "declining"]
+              description: Performance trend based on recent ICA history
+              example: "improving"
+            volatility:
+              type: number
+              format: float
+              description: Volatility coefficient (0-1+, lower = more stable)
+              example: 0.15
+            stability_factor:
+              type: number
+              format: float
+              description: Stability adjustment factor applied to raw ICA
+              example: 0.925
+            trend_adjustment:
+              type: number
+              format: float
+              description: Trend-based adjustment applied to ICA
+              example: 0.12
+            last_ica:
+              type: number
+              format: float
+              nullable: true
+              description: Last calculated ICA score
+              example: 6.8
+            average_ica:
+              type: number
+              format: float
+              nullable: true
+              description: Average ICA over analysis period
+              example: 6.5
+            days_since_last_calculation:
+              type: number
+              description: Days since last ICA calculation
+              example: 1
+            raw_ica_score:
+              type: number
+              format: float
+              description: Raw ICA score before temporal adjustments
+              example: 7.1
+            temporal_adjustments_applied:
+              type: boolean
+              description: Whether temporal adjustments were applied
+              example: true
       required:
         - ica_score
         - adherence_rate
@@ -379,6 +432,17 @@ components:
         progression_velocity: 1.2
         detraining_factor: 0.95
         recommendations: ["Maintain current intensity", "Focus on sleep quality"]
+        temporal_context:
+          has_previous_calculations: true
+          trend: "improving"
+          volatility: 0.15
+          stability_factor: 0.925
+          trend_adjustment: 0.12
+          last_ica: 1.7
+          average_ica: 1.6
+          days_since_last_calculation: 1
+          raw_ica_score: 1.9
+          temporal_adjustments_applied: true
 
     SessionFeedback:
       type: object
@@ -1313,6 +1377,13 @@ paths:
         - Recovery metrics (sleep, fatigue, HRV)
         - Recent session completion rates and RPE
         - Technical quality and progression velocity
+        - **🆕 Temporal analysis** - Uses algorithm history for trend detection and intelligent smoothing
+        
+        **Enhanced Features:**
+        - Temporal trend analysis (improving/stable/declining patterns)
+        - Volatility detection with stability adjustments
+        - Intelligent smoothing to prevent erratic ICA changes
+        - Historical context awareness for better adaptation
         
         The ICA score is used to personalize training intensity and volume.
       responses:
@@ -1346,6 +1417,17 @@ paths:
                       avg_completion_rate: 0.87
                       avg_rpe: 6.8
                       avg_technical_quality: 4.1
+                    temporal_context:
+                      has_previous_calculations: true
+                      trend: "improving"
+                      volatility: 0.15
+                      stability_factor: 0.925
+                      trend_adjustment: 0.12
+                      last_ica: 1.7
+                      average_ica: 1.6
+                      days_since_last_calculation: 1
+                      raw_ica_score: 1.9
+                      temporal_adjustments_applied: true
         '401':
           description: Unauthorized
           content:
