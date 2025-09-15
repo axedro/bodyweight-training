@@ -78,6 +78,7 @@ export interface ExerciseBlock {
   rest_seconds: number
   progression_level: number
   target_rpe: number
+  duration_seconds?: number // Para ejercicios de tiempo (estiramientos, planks)
 }
 
 export interface GeneratedSession {
@@ -90,6 +91,14 @@ export interface GeneratedSession {
   cool_down: ExerciseBlock[]
   focus_areas: string[]
   notes?: string
+  // NUEVO: Metadatos del circuito
+  circuit_info?: {
+    total_circuits: number
+    exercises_per_circuit: number
+    rest_between_exercises: number
+    rest_between_circuits: number
+    estimated_duration: number
+  }
 }
 
 export interface TrainingPlan {
@@ -669,93 +678,63 @@ export class AdaptiveTrainingAlgorithm {
   }): GeneratedSession {
     const { profile, progressions, icaData, muscleGroupMetrics, exercisePerformance, confidenceData, earlyWarnings } = data
 
+    // 🕒 NUEVO: Calcular tiempo disponible y estructura óptima
+    const availableDuration = profile.preferred_session_duration
+    const timingBreakdown = this.calculateOptimalTiming(availableDuration)
+    
     // Analyze muscle group priorities based on performance data
     const muscleGroupPriorities = this.analyzeMuscleGroupPriorities(muscleGroupMetrics || [], exercisePerformance || [])
     
-    // Select exercises based on muscle group balance and user progressions
-    const exercise_blocks: ExerciseBlock[] = []
-    const selectedCategories = this.selectOptimalCategories(progressions, muscleGroupPriorities, 3)
+    // 🧮 NUEVO: Determinar número óptimo de ejercicios basado en tiempo disponible
+    const optimalExerciseCount = this.calculateOptimalExerciseCount(timingBreakdown.mainWorkout, icaData.ica_score)
+    const selectedCategories = this.selectOptimalCategories(progressions, muscleGroupPriorities, optimalExerciseCount)
+    
+    // 🏃 NUEVO: Generar ejercicios con estructura de circuito
+    const circuitData = this.generateCircuitWorkout({
+      selectedCategories,
+      progressions,
+      muscleGroupPriorities,
+      icaData,
+      availableTime: timingBreakdown.mainWorkout,
+      confidenceData,
+      earlyWarnings
+    })
 
-    for (const category of selectedCategories) {
-      const categoryProgressions = progressions.filter(p => 
-        p.exercises?.category === category && p.is_active
-      )
-      
-      // Select the best exercise for this category considering muscle group balance
-      const selectedProgression = this.selectBestExerciseForBalance(
-        categoryProgressions, 
-        muscleGroupPriorities, 
-        icaData.ica_score
-      )
-      
-      if (selectedProgression && selectedProgression.exercises) {
-        // NUEVO: Aplicar factor de confianza a las progresiones
-        const adjustedICA = confidenceData ? icaData.ica_score * confidenceData.progressionMultiplier : icaData.ica_score
-        
-        const targetReps = this.calculateRepsForProgression(selectedProgression, adjustedICA)
-        const sets = this.calculateOptimalSets(category, muscleGroupPriorities, adjustedICA)
-        
-        // NUEVO: Ajustar RPE basado en nivel de riesgo
-        let targetRPE = Math.min(8, Math.round(adjustedICA + 2))
-        if (earlyWarnings?.riskLevel === 'medium') {
-          targetRPE = Math.max(4, targetRPE - 1) // Reducir RPE para usuarios en riesgo medio
-        } else if (earlyWarnings?.riskLevel === 'high') {
-          targetRPE = Math.max(3, targetRPE - 2) // Reducir más para usuarios en riesgo alto
-        }
-        
-        exercise_blocks.push({
-          exercise: selectedProgression.exercises,
-          sets,
-          reps: targetReps,
-          rest_seconds: this.calculateRestTime(category, adjustedICA),
-          progression_level: selectedProgression.current_level,
-          target_rpe: targetRPE
-        })
-      }
-    }
-
-    // Create simple warm-up and cool-down from easy exercises
+    // Create warm-up and cool-down with calculated timing
     const easyExercises = progressions.filter(p => 
       p.exercises && p.exercises.difficulty_level <= 2.5
     )
     
-    const warm_up: ExerciseBlock[] = easyExercises.slice(0, 2).map(prog => ({
-      exercise: prog.exercises!,
-      sets: 1,
-      reps: 8,
-      rest_seconds: 30,
-      progression_level: 1,
-      target_rpe: 3
-    }))
+    const warm_up: ExerciseBlock[] = this.generateTimedWarmup(easyExercises, timingBreakdown.warmup)
+    const cool_down: ExerciseBlock[] = this.generateTimedCooldown(easyExercises, timingBreakdown.cooldown)
 
-    const cool_down: ExerciseBlock[] = easyExercises.slice(-1).map(prog => ({
-      exercise: prog.exercises!,
-      sets: 1,
-      reps: 15,
-      rest_seconds: 0,
-      progression_level: 1,
-      target_rpe: 2
-    }))
-
-    // NUEVO: Generar notas mejoradas con información del algoritmo inteligente
+    // NUEVO: Generar notas con información de tiempo y circuito
     const algorithmNotes = [
       `ICA: ${icaData.ica_score.toFixed(1)}${confidenceData ? ` (Confianza: ${(confidenceData.confidenceScore * 100).toFixed(0)}%)` : ''}`,
+      `Circuito: ${circuitData.exercises.length} ejercicios × ${circuitData.circuits} rondas`,
+      `Tiempo: ${timingBreakdown.warmup}+${timingBreakdown.mainWorkout}+${timingBreakdown.cooldown}min`,
       `Balance muscular: ${Object.entries(muscleGroupPriorities).filter(([_, priority]) => priority > 1.2).map(([group]) => group).join(', ') || 'equilibrado'}`,
-      confidenceData && confidenceData.progressionMultiplier !== 1.0 ? 
-        `Progresión ${confidenceData.progressionMultiplier > 1.0 ? 'acelerada' : 'conservadora'} (${(confidenceData.progressionMultiplier * 100).toFixed(0)}%)` : '',
       earlyWarnings?.isAtRisk ? `⚠️ ${earlyWarnings.riskLevel.toUpperCase()} risk detected` : ''
     ].filter(note => note).join(' | ')
 
     return {
       id: `session-${Date.now()}`,
       date: data.date,
-      duration_minutes: profile.preferred_session_duration,
+      duration_minutes: availableDuration,
       intensity: icaData.ica_score / 10,
       warm_up,
-      exercise_blocks,
+      exercise_blocks: circuitData.exercises,
       cool_down,
       focus_areas: selectedCategories,
-      notes: `🧠 ALGORITMO MEJORADO: ${algorithmNotes}`
+      notes: `🔄 CIRCUITO ADAPTATIVO: ${algorithmNotes}`,
+      // NUEVO: Metadatos del circuito
+      circuit_info: {
+        total_circuits: circuitData.circuits,
+        exercises_per_circuit: circuitData.exercises.length,
+        rest_between_exercises: circuitData.restBetweenExercises,
+        rest_between_circuits: circuitData.restBetweenCircuits,
+        estimated_duration: availableDuration
+      }
     }
   }
 
@@ -1720,5 +1699,197 @@ export class AdaptiveTrainingAlgorithm {
     const final_score = Math.max(2.0, Math.min(10.0, dynamic_score))
     
     return final_score
+  }
+
+  /**
+   * 🕒 NUEVO: Calcula la distribución óptima de tiempo por sección
+   */
+  private calculateOptimalTiming(totalDuration: number): {
+    warmup: number
+    mainWorkout: number  
+    cooldown: number
+  } {
+    // Distribución porcentual basada en duración total
+    let warmupPercent = 0.15  // 15% calentamiento
+    let cooldownPercent = 0.15 // 15% enfriamiento
+    let mainPercent = 0.70    // 70% ejercicio principal
+    
+    // Ajustar según duración total
+    if (totalDuration <= 20) {
+      // Sesiones cortas: reducir calentamiento/enfriamiento
+      warmupPercent = 0.10
+      cooldownPercent = 0.10
+      mainPercent = 0.80
+    } else if (totalDuration >= 60) {
+      // Sesiones largas: más calentamiento/enfriamiento
+      warmupPercent = 0.20
+      cooldownPercent = 0.15
+      mainPercent = 0.65
+    }
+    
+    return {
+      warmup: Math.round(totalDuration * warmupPercent),
+      mainWorkout: Math.round(totalDuration * mainPercent),
+      cooldown: Math.round(totalDuration * cooldownPercent)
+    }
+  }
+
+  /**
+   * 🧮 NUEVO: Calcula número óptimo de ejercicios basado en tiempo disponible
+   */
+  private calculateOptimalExerciseCount(availableMinutes: number, icaScore: number): number {
+    // Tiempo estimado por ejercicio (incluyendo ejecución + descansos)
+    const baseTimePerExercise = 4.5 // minutos por ejercicio en circuito
+    
+    // Ajustar basado en ICA (mayor ICA = ejercicios más intensos = más tiempo)
+    const icaTimeMultiplier = Math.max(0.8, Math.min(1.3, icaScore / 5))
+    const adjustedTimePerExercise = baseTimePerExercise * icaTimeMultiplier
+    
+    // Calcular número de ejercicios que caben
+    const rawCount = Math.floor(availableMinutes / adjustedTimePerExercise)
+    
+    // Límites mínimos y máximos
+    const minExercises = 2
+    const maxExercises = 6
+    
+    return Math.max(minExercises, Math.min(maxExercises, rawCount))
+  }
+
+  /**
+   * 🏃 NUEVO: Genera estructura de entrenamiento en circuito
+   */
+  private generateCircuitWorkout(data: {
+    selectedCategories: string[]
+    progressions: UserExerciseProgression[]
+    muscleGroupPriorities: { [muscleGroup: string]: number }
+    icaData: ICAData
+    availableTime: number
+    confidenceData?: any
+    earlyWarnings?: any
+  }): {
+    exercises: ExerciseBlock[]
+    circuits: number
+    restBetweenExercises: number
+    restBetweenCircuits: number
+  } {
+    const { selectedCategories, progressions, muscleGroupPriorities, icaData, availableTime, confidenceData, earlyWarnings } = data
+    
+    // Calcular timing del circuito
+    const circuitTiming = this.calculateCircuitTiming(selectedCategories.length, availableTime, icaData.ica_score)
+    
+    // Generar ejercicios (uno por categoría)
+    const exercises: ExerciseBlock[] = []
+    
+    for (const category of selectedCategories) {
+      const categoryProgressions = progressions.filter(p => 
+        p.exercises?.category === category && p.is_active
+      )
+      
+      const selectedProgression = this.selectBestExerciseForBalance(
+        categoryProgressions, 
+        muscleGroupPriorities, 
+        icaData.ica_score
+      )
+      
+      if (selectedProgression && selectedProgression.exercises) {
+        const adjustedICA = confidenceData ? icaData.ica_score * confidenceData.progressionMultiplier : icaData.ica_score
+        
+        // En circuito: 1 set por ejercicio por ronda
+        const targetReps = this.calculateRepsForProgression(selectedProgression, adjustedICA)
+        
+        let targetRPE = Math.min(8, Math.round(adjustedICA + 2))
+        if (earlyWarnings?.riskLevel === 'medium') {
+          targetRPE = Math.max(4, targetRPE - 1)
+        } else if (earlyWarnings?.riskLevel === 'high') {
+          targetRPE = Math.max(3, targetRPE - 2)
+        }
+        
+        exercises.push({
+          exercise: selectedProgression.exercises,
+          sets: circuitTiming.circuits, // Total circuits = total sets
+          reps: targetReps,
+          rest_seconds: circuitTiming.restBetweenExercises,
+          progression_level: selectedProgression.current_level,
+          target_rpe: targetRPE
+        })
+      }
+    }
+    
+    return {
+      exercises,
+      circuits: circuitTiming.circuits,
+      restBetweenExercises: circuitTiming.restBetweenExercises,
+      restBetweenCircuits: circuitTiming.restBetweenCircuits
+    }
+  }
+
+  /**
+   * ⏱️ NUEVO: Calcula timing específico del circuito
+   */
+  private calculateCircuitTiming(exerciseCount: number, availableMinutes: number, icaScore: number): {
+    circuits: number
+    restBetweenExercises: number
+    restBetweenCircuits: number
+  } {
+    // Tiempo estimado por repetición (segundos)
+    const timePerRep = 3 // segundos
+    const avgRepsPerExercise = 10 // estimación promedio
+    
+    // Descansos basados en ICA
+    const restBetweenExercises = Math.round(15 + (icaScore * 5)) // 15-45 segundos
+    const restBetweenCircuits = Math.round(60 + (icaScore * 15)) // 60-165 segundos
+    
+    // Tiempo total por circuito (segundos)
+    const timePerCircuit = (exerciseCount * avgRepsPerExercise * timePerRep) + 
+                          (exerciseCount - 1) * restBetweenExercises + 
+                          restBetweenCircuits
+    
+    // Calcular cuántos circuitos caben
+    const availableSeconds = availableMinutes * 60
+    const maxCircuits = Math.floor(availableSeconds / timePerCircuit)
+    
+    // Límites de circuitos
+    const circuits = Math.max(2, Math.min(5, maxCircuits))
+    
+    return {
+      circuits,
+      restBetweenExercises,
+      restBetweenCircuits
+    }
+  }
+
+  /**
+   * 🔥 NUEVO: Genera calentamiento con tiempo específico
+   */
+  private generateTimedWarmup(easyExercises: UserExerciseProgression[], targetMinutes: number): ExerciseBlock[] {
+    const exerciseCount = Math.max(2, Math.min(4, Math.ceil(targetMinutes / 2)))
+    const selectedExercises = easyExercises.slice(0, exerciseCount)
+    
+    return selectedExercises.map(prog => ({
+      exercise: prog.exercises!,
+      sets: 1,
+      reps: Math.max(8, Math.round(targetMinutes * 2)), // Más reps si más tiempo
+      rest_seconds: 20,
+      progression_level: 1,
+      target_rpe: 3
+    }))
+  }
+
+  /**
+   * ❄️ NUEVO: Genera enfriamiento con tiempo específico
+   */
+  private generateTimedCooldown(easyExercises: UserExerciseProgression[], targetMinutes: number): ExerciseBlock[] {
+    const exerciseCount = Math.max(1, Math.min(3, Math.ceil(targetMinutes / 2)))
+    const selectedExercises = easyExercises.slice(-exerciseCount)
+    
+    return selectedExercises.map(prog => ({
+      exercise: prog.exercises!,
+      sets: 1,
+      reps: 1, // Stretches son por tiempo, no repeticiones
+      rest_seconds: 10,
+      progression_level: 1,
+      target_rpe: 2,
+      duration_seconds: Math.round((targetMinutes * 60) / exerciseCount) // Dividir tiempo equitativamente
+    }))
   }
 }

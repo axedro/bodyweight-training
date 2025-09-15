@@ -24,6 +24,14 @@
 - ✅ **Sistema de análisis de evolución temporal** con predicciones de ICA
 - ✅ **Integración completa** frontend ↔ backend ↔ base de datos
 
+#### **🔄 SPRINT 2.9: Sistema de Circuitos Inteligente (COMPLETADO)**
+- ✅ **Algoritmo de duración inteligente**: Respeta duración elegida por usuario
+- ✅ **Cálculo temporal preciso**: Estima tiempo real basado en ejercicios + descansos
+- ✅ **Formato circuito**: Rotación de ejercicios con descansos optimizados
+- ✅ **Número de ejercicios variable**: 2-6 ejercicios según tiempo disponible (20-60min)
+- ✅ **Metadatos de circuito**: `circuit_info` con datos completos para tracking
+- ✅ **Estructura adaptativa**: Warmup y cooldown proporcionales a duración total
+
 #### **💾 Base de Datos Final**
 ```sql
 - training_sessions      ✅ Con datos de duración e intensidad

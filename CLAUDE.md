@@ -598,31 +598,34 @@ curl -X POST \
 ### **Estado Actual: PRODUCCIÓN LISTA**
 El sistema está completamente integrado y funcional con todas las características implementadas:
 
-#### **🏋️ Generación de Rutinas Completas**
-- **117 ejercicios** disponibles (vs 35 anteriores) 
-- **Estructura completa**: Calentamiento → Ejercicios principales → Enfriamiento
-- **Creación automática** de `session_exercises` con IDs reales
-- **Sin duplicación** de datos entre frontend/backend
+#### **🔄 Generación de Rutinas en Circuito Inteligente (Sprint 2.9)**
+- **117 ejercicios** disponibles con estructura de circuito adaptativa
+- **Duración inteligente**: Respeta la duración elegida por el usuario (20-60 min)
+- **Cálculo temporal preciso**: Estimación exacta basada en ejercicios + descansos
+- **Formato circuito**: Ejercicios en rotación con descansos cortos/largos optimizados
+- **Número de ejercicios variable**: 2-6 ejercicios según tiempo disponible
+- **Metadatos de circuito**: Información completa para ejecución y tracking
 
-#### **📊 Sistema de Feedback por Ejercicio Implementado**
-- **Ejercicios principales**: Formulario detallado con repeticiones por serie, RPE y calidad técnica
-- **Ejercicios de tiempo**: Input para segundos mantenidos (planks, stretches)
-- **Calentamiento/Enfriamiento**: Completado automático con valores apropiados
-- **Datos reales**: Se guardan en `session_exercises` y `exercise_performance`
+#### **📊 Sistema de Feedback Circuito-Aware** 
+- **Estructura nueva**: Ejercicios × Circuitos (no Sets tradicionales)
+- **Feedback por ronda**: Tracking de cada circuito completado
+- **Datos de tiempo real**: Duración efectiva vs estimada
+- **RPE por circuito**: Intensidad percibida por ronda
+- **Descansos adaptativos**: 15-45s entre ejercicios, 60-165s entre circuitos
 
-#### **🔄 Flujo de Datos Completo Funcionando**
+#### **🔄 Flujo de Datos Circuito Completo**
 ```
-Generar Rutina → Crear session_exercises con IDs
+Usuario Elige Duración (20-60min) → Calcular Timing Óptimo
      ↓
-Ejecutar Ejercicios → Feedback específico por ejercicio
+Determinar Ejercicios (2-6) → Generar Circuitos (2-5 rondas)
+     ↓
+Crear session_exercises + circuit_info → Frontend muestra circuitos
      ↓  
-Completar Sesión → Actualizar session_exercises + crear exercise_performance
+Ejecutar Circuitos → Feedback por ronda (no por set)
      ↓
-Análisis Grupos Musculares → Datos reales de rendimiento
+Completar Sesión → Guardar datos reales de circuito
      ↓
-Algoritmo Adaptativo → ICA actualizado con métricas precisas
-     ↓
-Análisis de Evolución → Tracking temporal de KPIs y predicciones
+Algoritmo Adaptativo → ICA con métricas de circuito
 ```
 
 #### **📈 Análisis de Grupos Musculares Completo**
