@@ -84,7 +84,6 @@ serve(async (req) => {
         actual_duration,
         intensity_target,
         ica_score,
-        completion_rate,
         notes,
         created_at,
         updated_at
@@ -161,7 +160,17 @@ serve(async (req) => {
       ? completedSessions.reduce((sum, s) => sum + (s.actual_duration || s.planned_duration || 0), 0) / completedSessions.length
       : 0
     const averageCompletionRate = completedSessions.length > 0
-      ? completedSessions.reduce((sum, s) => sum + (s.completion_rate || 0), 0) / completedSessions.length
+      ? completedSessions.reduce((sum, s) => {
+          // Calculate completion rate based on session exercises
+          const sessionExercises = s.session_exercises || []
+          if (sessionExercises.length === 0) return sum + 1.0 // If no exercises, assume 100%
+          
+          const completedExercises = sessionExercises.filter(ex => 
+            ex.sets_completed && ex.sets_completed > 0
+          )
+          const completionRate = completedExercises.length / sessionExercises.length
+          return sum + completionRate
+        }, 0) / completedSessions.length
       : 0
     const averageICA = completedSessions.length > 0
       ? completedSessions.reduce((sum, s) => sum + (s.ica_score || 0), 0) / completedSessions.length

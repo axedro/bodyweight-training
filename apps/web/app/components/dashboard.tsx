@@ -10,12 +10,15 @@ import {
   Activity, 
   Calendar, 
   TrendingUp, 
+  TrendingDown,
   Target, 
   Clock, 
   Zap,
   Play,
   BarChart3,
-  AlertTriangle
+  AlertTriangle,
+  Brain,
+  ChevronRight
 } from 'lucide-react'
 import { routineService } from '../../lib/routine-service'
 import { GeneratedSession, TrainingPlan } from '@bodyweight/shared'
@@ -258,6 +261,62 @@ export function Dashboard({ user, userProfile: profile, onLogout }: DashboardPro
               </div>
             </div>
             
+            {/* ✨ NUEVO: Información temporal del algoritmo */}
+            {icaData.temporal_context && (
+              <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <Brain className="h-4 w-4 text-blue-600" />
+                  <h4 className="font-semibold text-blue-800">Análisis Temporal del Algoritmo</h4>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    {icaData.temporal_context.trend === 'improving' && <TrendingUp className="h-4 w-4 text-green-600" />}
+                    {icaData.temporal_context.trend === 'declining' && <TrendingDown className="h-4 w-4 text-red-600" />}
+                    {icaData.temporal_context.trend === 'stable' && <Activity className="h-4 w-4 text-blue-600" />}
+                    <div>
+                      <span className="font-medium">Tendencia</span>
+                      <div className={`text-xs ${
+                        icaData.temporal_context.trend === 'improving' ? 'text-green-600' : 
+                        icaData.temporal_context.trend === 'declining' ? 'text-red-600' : 'text-blue-600'
+                      }`}>
+                        {icaData.temporal_context.trend === 'improving' ? 'Mejorando' : 
+                         icaData.temporal_context.trend === 'declining' ? 'Declinando' : 'Estable'}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <span className="font-medium">Estabilidad</span>
+                    <div className="text-xs text-muted-foreground">
+                      {(icaData.temporal_context.stability_factor * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <span className="font-medium">ICA Anterior</span>
+                    <div className="text-xs text-muted-foreground">
+                      {icaData.temporal_context.last_ica?.toFixed(1) || 'N/A'}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <span className="font-medium">Hace</span>
+                    <div className="text-xs text-muted-foreground">
+                      {icaData.temporal_context.days_since_last_calculation} día{icaData.temporal_context.days_since_last_calculation !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </div>
+                
+                {icaData.temporal_context.temporal_adjustments_applied && (
+                  <div className="mt-3 text-xs text-blue-700 bg-blue-100 p-2 rounded">
+                    <strong>ICA Raw:</strong> {icaData.temporal_context.raw_ica_score?.toFixed(1)} → 
+                    <strong> ICA Ajustado:</strong> {icaData.ica_score?.toFixed(1)} 
+                    (suavizado temporal aplicado)
+                  </div>
+                )}
+              </div>
+            )}
+
             {icaData.recommendations && icaData.recommendations.length > 0 && (
               <div className="mt-4 p-4 bg-muted rounded-lg">
                 <h4 className="font-semibold mb-2">Recomendaciones:</h4>

@@ -32,16 +32,19 @@ export function BiometricUpdate({
   isOpen, 
   onClose, 
   onUpdate, 
-  currentData = {} 
+  currentData 
 }: BiometricUpdateProps) {
+  // Ensure currentData is never null or undefined
+  const safeCurrentData = currentData || {}
+  
   const [formData, setFormData] = useState({
-    weight: currentData.weight?.toString() || '',
-    body_fat_percentage: currentData.body_fat_percentage?.toString() || '',
-    resting_hr: currentData.resting_hr?.toString() || '',
-    training_hr_avg: currentData.training_hr_avg?.toString() || '',
-    sleep_hours: currentData.sleep_hours?.toString() || '7.5',
-    sleep_quality: currentData.sleep_quality?.toString() || '3',
-    fatigue_level: currentData.fatigue_level?.toString() || '2',
+    weight: safeCurrentData.weight?.toString() || '',
+    body_fat_percentage: safeCurrentData.body_fat_percentage?.toString() || '',
+    resting_hr: safeCurrentData.resting_hr?.toString() || '',
+    training_hr_avg: safeCurrentData.training_hr_avg?.toString() || '',
+    sleep_hours: safeCurrentData.sleep_hours?.toString() || '7.5',
+    sleep_quality: safeCurrentData.sleep_quality?.toString() || '3',
+    fatigue_level: safeCurrentData.fatigue_level?.toString() || '2',
   })
   
   const [loading, setLoading] = useState(false)
@@ -52,7 +55,7 @@ export function BiometricUpdate({
     setFormData(prev => ({ ...prev, [field]: value }))
     
     // Track which fields have been changed
-    const currentValue = currentData[field as keyof BiometricData]?.toString() || ''
+    const currentValue = safeCurrentData[field as keyof BiometricData]?.toString() || ''
     if (value !== currentValue) {
       setChangedFields(prev => new Set([...prev, field]))
     } else {
@@ -137,8 +140,8 @@ export function BiometricUpdate({
   }
 
   const getDaysAgo = () => {
-    if (!currentData.last_updated) return 'Nunca actualizado'
-    const days = Math.floor((Date.now() - new Date(currentData.last_updated).getTime()) / (1000 * 60 * 60 * 24))
+    if (!safeCurrentData.last_updated) return 'Nunca actualizado'
+    const days = Math.floor((Date.now() - new Date(safeCurrentData.last_updated).getTime()) / (1000 * 60 * 60 * 24))
     if (days === 0) return 'Actualizado hoy'
     if (days === 1) return 'Ayer'
     return `Hace ${days} días`
@@ -176,7 +179,7 @@ export function BiometricUpdate({
                 </label>
                 <Input
                   type="number"
-                  placeholder={currentData.weight?.toString() || "70.0"}
+                  placeholder={safeCurrentData.weight?.toString() || "70.0"}
                   value={formData.weight}
                   onChange={(e) => updateFormData('weight', e.target.value)}
                   min="30"
@@ -195,7 +198,7 @@ export function BiometricUpdate({
                 </label>
                 <Input
                   type="number"
-                  placeholder={currentData.body_fat_percentage?.toString() || "18.0"}
+                  placeholder={safeCurrentData.body_fat_percentage?.toString() || "18.0"}
                   value={formData.body_fat_percentage}
                   onChange={(e) => updateFormData('body_fat_percentage', e.target.value)}
                   min="5"
@@ -225,7 +228,7 @@ export function BiometricUpdate({
                 </label>
                 <Input
                   type="number"
-                  placeholder={currentData.resting_hr?.toString() || "65"}
+                  placeholder={safeCurrentData.resting_hr?.toString() || "65"}
                   value={formData.resting_hr}
                   onChange={(e) => updateFormData('resting_hr', e.target.value)}
                   min="40"
@@ -243,7 +246,7 @@ export function BiometricUpdate({
                 </label>
                 <Input
                   type="number"
-                  placeholder={currentData.training_hr_avg?.toString() || "145"}
+                  placeholder={safeCurrentData.training_hr_avg?.toString() || "145"}
                   value={formData.training_hr_avg}
                   onChange={(e) => updateFormData('training_hr_avg', e.target.value)}
                   min="80"

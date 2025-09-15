@@ -357,12 +357,13 @@ export class AdaptiveTrainingAlgorithm {
   }): ICAData {
     const { profile, recentSessions, algorithmHistory } = data
     
+    
     // Check if user is new and needs special handling
     const isNew = this.isNewUser(recentSessions)
     
     // For brand new users (0 sessions), use conservative baseline ICA
     if (recentSessions.length === 0) {
-      return this.generateNewUserICA(profile)
+      return this.generateNewUserICA(profile, algorithmHistory)
     }
     
     // ✨ NUEVO: Análisis temporal del historial del algoritmo
@@ -527,7 +528,7 @@ export class AdaptiveTrainingAlgorithm {
   /**
    * Generate conservative baseline ICA for brand new users
    */
-  generateNewUserICA(profile: UserProfile): ICAData {
+  generateNewUserICA(profile: UserProfile, algorithmHistory?: AlgorithmStateHistory[]): ICAData {
     const fitness_multiplier = this.FITNESS_LEVELS[profile.fitness_level] || 1.0
     const base_ica = 0.8 * fitness_multiplier // Conservative base
     const experience_bonus = Math.min(0.3, profile.experience_years * 0.1)
@@ -545,6 +546,9 @@ export class AdaptiveTrainingAlgorithm {
     
     const ica_score = Math.max(0.1, Math.min(2.0, (base_ica + experience_bonus + cardiovascular_bonus) * age_factor))
 
+    // ✨ NUEVO: Análisis temporal para usuarios nuevos también
+    const temporalContext = this.analyzeTemporalContext(algorithmHistory || [])
+
     const recommendations = [
       "¡Bienvenido! Empezaremos con rutinas suaves para evaluar tu nivel",
       "Es importante completar los primeros entrenamientos para personalizar tu programa",
@@ -558,7 +562,7 @@ export class AdaptiveTrainingAlgorithm {
       recommendations.push("Aunque seas avanzado, empezaremos conservadoramente para evaluar tus patrones de movimiento")
     }
 
-    return {
+    const returnObject = {
       ica_score: Math.round(ica_score * 100) / 100,
       adherence_rate: 1.0, // Assume full adherence for new users
       recovery_factor: 0.8, // Assume good recovery initially
@@ -576,8 +580,23 @@ export class AdaptiveTrainingAlgorithm {
         last_training_date: undefined,
         days_since_last_training: undefined
       },
-      recommendations
+      recommendations,
+      // ✨ NUEVO: Información temporal también para usuarios nuevos
+      temporal_context: {
+        has_previous_calculations: temporalContext.hasPreviousCalculations,
+        trend: temporalContext.trend,
+        volatility: temporalContext.volatility,
+        stability_factor: temporalContext.stabilityFactor,
+        trend_adjustment: temporalContext.trendAdjustment,
+        last_ica: temporalContext.lastICA || undefined,
+        average_ica: temporalContext.averageICA || undefined,
+        days_since_last_calculation: temporalContext.daysSinceLastCalculation,
+        raw_ica_score: Math.round(ica_score * 100) / 100,
+        temporal_adjustments_applied: temporalContext.hasPreviousCalculations
+      }
     }
+    
+    return returnObject
   }
 
   generateTrainingPlan(data: {

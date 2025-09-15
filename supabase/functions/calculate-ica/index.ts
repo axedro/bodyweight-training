@@ -247,6 +247,7 @@ serve(async (req) => {
         recent_performance: icaData.recent_performance,
         user_state: icaData.user_state,
         recommendations: icaData.recommendations,
+        temporal_context: icaData.temporal_context, // ✨ NUEVO: Include temporal context in response
         calculation_date: new Date().toISOString(),
         biometric_data_used: {
           source: biometricsError || !latestBiometrics || latestBiometrics.length === 0 ? 'user_profile' : 'biometric_snapshots',
