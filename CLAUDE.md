@@ -598,20 +598,19 @@ curl -X POST \
 ### **Estado Actual: PRODUCCIÓN LISTA**
 El sistema está completamente integrado y funcional con todas las características implementadas:
 
-#### **🔄 Generación de Rutinas en Circuito Inteligente (Sprint 2.9)**
-- **117 ejercicios** disponibles con estructura de circuito adaptativa
-- **Duración inteligente**: Respeta la duración elegida por el usuario (20-60 min)
-- **Cálculo temporal preciso**: Estimación exacta basada en ejercicios + descansos
-- **Formato circuito**: Ejercicios en rotación con descansos cortos/largos optimizados
-- **Número de ejercicios variable**: 2-6 ejercicios según tiempo disponible
-- **Metadatos de circuito**: Información completa para ejecución y tracking
+#### **🔄 Generación de Rutinas en Circuito Inteligente (Sprint 2.9 - COMPLETADO)**
+- **✅ Duración inteligente**: Algoritmo respeta la duración elegida por el usuario (20-60 min)
+- **✅ Cálculo temporal preciso**: Estimación exacta basada en ejercicios + descansos entre ejercicios + circuitos
+- **✅ Formato circuito**: Ejercicios en rotación (1→2→3→1→2→3) con descansos optimizados
+- **✅ Número de ejercicios variable**: 2-6 ejercicios según tiempo disponible e ICA
+- **✅ Migración DB completa**: Migration 014 añade campos de circuito a todas las tablas
 
-#### **📊 Sistema de Feedback Circuito-Aware** 
-- **Estructura nueva**: Ejercicios × Circuitos (no Sets tradicionales)
-- **Feedback por ronda**: Tracking de cada circuito completado
-- **Datos de tiempo real**: Duración efectiva vs estimada
-- **RPE por circuito**: Intensidad percibida por ronda
-- **Descansos adaptativos**: 15-45s entre ejercicios, 60-165s entre circuitos
+#### **📊 Sistema de Feedback Circuito-Aware (IMPLEMENTADO)** 
+- **✅ Estructura nueva**: Ejercicios × Circuitos (no Sets tradicionales)
+- **✅ Feedback por ronda**: RPE, repeticiones y calidad técnica por circuito
+- **✅ Frontend actualizado**: UI específica para mostrar y capturar datos de circuito
+- **✅ API Edge Functions**: save-session-feedback maneja datos de circuito correctamente
+- **✅ Descansos optimizados**: 15-45s entre ejercicios, 60-165s entre circuitos según ICA
 
 #### **🔄 Flujo de Datos Circuito Completo**
 ```
@@ -635,10 +634,11 @@ Algoritmo Adaptativo → ICA con métricas de circuito
 - **Advertencias pre-rutina** para desequilibrios >30%
 
 #### **🗄️ Base de Datos Completamente Poblada**
-- **Esquema final**: 9 migraciones aplicadas
+- **Esquema final**: 14 migraciones aplicadas (incluye circuit training support)
 - **117 ejercicios**: 8 categorías incluyendo warmup/cooldown  
-- **Alternativas**: Sistema de ejercicios sustitutivos
-- **Tracking completo**: session_exercises, exercise_performance, muscle_group_metrics
+- **Circuito-ready**: Campos de circuito en session_exercises, exercise_performance, training_sessions
+- **Tracking dual**: Soporte tanto para sets tradicionales como formato circuito
+- **Validación automática**: Triggers y constraints para garantizar consistencia de datos
 
 #### **🎯 Experiencia de Usuario Final**
 1. **Registro → Onboarding → Dashboard**: Flujo completo sin errores

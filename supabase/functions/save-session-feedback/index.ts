@@ -30,6 +30,13 @@ interface SaveFeedbackRequest {
     techniqueQuality?: number
     restTimeActual?: number
     difficultyPerceived?: number
+    // Circuit-specific fields
+    circuitData?: {
+      reps_per_circuit: number[]
+      rpe_per_circuit: number[]
+      technique_per_circuit: number[]
+      actual_rest_between_circuits?: number[]
+    }
   }[]
 }
 
@@ -196,7 +203,12 @@ serve(async (req: Request) => {
         technique_quality: perf.techniqueQuality,
         rest_time_actual: perf.restTimeActual,
         difficulty_perceived: perf.difficultyPerceived,
-        muscle_groups: [] as string[] // Will be populated from exercise data
+        muscle_groups: [] as string[], // Will be populated from exercise data
+        // Circuit-specific fields
+        circuit_data: perf.circuitData || null,
+        circuit_rpe: perf.circuitData?.rpe_per_circuit || null,
+        circuit_technique_quality: perf.circuitData?.technique_per_circuit || null,
+        actual_rest_between_circuits: perf.circuitData?.actual_rest_between_circuits || null
       }))
 
       // Get muscle groups for each exercise
@@ -245,7 +257,9 @@ serve(async (req: Request) => {
             reps_completed: update.reps_completed,
             rpe_reported: update.rpe_reported,
             technical_quality: update.technical_quality,
-            notes: update.notes
+            notes: update.notes,
+            // For circuit format, also update circuit completion
+            circuits_completed: sessionExercises.find((ex: any) => ex.id === update.id)?.circuits_planned || null
           })
           .eq('id', update.id)
       }

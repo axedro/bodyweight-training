@@ -97,6 +97,13 @@ export interface SessionExercise {
   notes?: string;
   created_at: string;
   updated_at: string;
+  
+  // Circuit format fields
+  circuits_planned?: number;
+  circuits_completed?: number;
+  rest_between_circuits?: number;
+  circuit_position?: number;
+  is_circuit_format?: boolean;
 }
 
 export interface WellnessLog {
@@ -206,6 +213,13 @@ export interface ExerciseBlock {
   target_rpe: number;
   notes?: string;
   session_exercise_id?: string; // ID from session_exercises table for tracking completion
+  
+  // Circuit format fields
+  is_circuit_format?: boolean;
+  circuits_planned?: number;
+  circuits_completed?: number;
+  circuit_position?: number;
+  rest_between_circuits?: number;
 }
 
 export interface TrainingPlan {

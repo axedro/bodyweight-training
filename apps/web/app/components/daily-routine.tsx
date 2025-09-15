@@ -46,7 +46,12 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
     reps_per_set: [] as number[],
     total_time_seconds: 0,
     rpe_reported: 5,
-    technical_quality: 4
+    technical_quality: 4,
+    // Circuit-specific fields
+    circuits_completed: 0,
+    reps_per_circuit: [] as number[],
+    rpe_per_circuit: [] as number[],
+    technique_per_circuit: [] as number[]
   })
 
   const allExercises = [
@@ -88,19 +93,46 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
     
     // Initialize performance data based on exercise type
     if (exercise.type === 'main') {
-      const defaultRepsPerSet = Array(exercise.sets || 3).fill(exercise.reps || 10)
-      setCurrentPerformance({
-        sets_completed: exercise.sets || 3,
-        reps_per_set: defaultRepsPerSet,
-        total_time_seconds: exercise.duration_seconds || 0,
-        rpe_reported: 5,
-        technical_quality: 4
-      })
+      // Check if this is circuit format
+      if (exercise.is_circuit_format) {
+        const defaultRepsPerCircuit = Array(exercise.circuits_planned || 3).fill(exercise.reps || 10)
+        const defaultRpePerCircuit = Array(exercise.circuits_planned || 3).fill(5)
+        const defaultTechniquePerCircuit = Array(exercise.circuits_planned || 3).fill(4)
+        setCurrentPerformance({
+          sets_completed: 0,
+          reps_per_set: [],
+          circuits_completed: exercise.circuits_planned || 3,
+          reps_per_circuit: defaultRepsPerCircuit,
+          rpe_per_circuit: defaultRpePerCircuit,
+          technique_per_circuit: defaultTechniquePerCircuit,
+          total_time_seconds: exercise.duration_seconds || 0,
+          rpe_reported: 5,
+          technical_quality: 4
+        })
+      } else {
+        // Traditional format
+        const defaultRepsPerSet = Array(exercise.sets || 3).fill(exercise.reps || 10)
+        setCurrentPerformance({
+          sets_completed: exercise.sets || 3,
+          reps_per_set: defaultRepsPerSet,
+          circuits_completed: 0,
+          reps_per_circuit: [],
+          rpe_per_circuit: [],
+          technique_per_circuit: [],
+          total_time_seconds: exercise.duration_seconds || 0,
+          rpe_reported: 5,
+          technical_quality: 4
+        })
+      }
     } else {
       // For warmup/cooldown
       setCurrentPerformance({
         sets_completed: 1,
         reps_per_set: [exercise.reps || 10],
+        circuits_completed: 0,
+        reps_per_circuit: [],
+        rpe_per_circuit: [],
+        technique_per_circuit: [],
         total_time_seconds: exercise.duration_seconds || 30,
         rpe_reported: 3,
         technical_quality: 5
@@ -246,11 +278,26 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
                   sessionExerciseId: data.exercise.session_exercise_id || `temp_${data.exercise.id}`,
                   exerciseId: data.exercise.id,
                   setNumber: 1,
-                  repsCompleted: data.reps_per_set.reduce((sum, reps) => sum + reps, 0),
-                  rpeReported: data.rpe_reported,
-                  techniqueQuality: data.technical_quality,
+                  repsCompleted: data.exercise.is_circuit_format 
+                    ? data.reps_per_circuit.reduce((sum: number, reps: number) => sum + reps, 0)
+                    : data.reps_per_set.reduce((sum: number, reps: number) => sum + reps, 0),
+                  rpeReported: data.exercise.is_circuit_format
+                    ? data.rpe_per_circuit.reduce((sum: number, rpe: number) => sum + rpe, 0) / data.rpe_per_circuit.length
+                    : data.rpe_reported,
+                  techniqueQuality: data.exercise.is_circuit_format
+                    ? data.technique_per_circuit.reduce((sum: number, tech: number) => sum + tech, 0) / data.technique_per_circuit.length
+                    : data.technical_quality,
                   restTimeActual: data.exercise.rest_seconds || 60,
-                  difficultyPerceived: data.rpe_reported
+                  difficultyPerceived: data.exercise.is_circuit_format
+                    ? data.rpe_per_circuit.reduce((sum: number, rpe: number) => sum + rpe, 0) / data.rpe_per_circuit.length
+                    : data.rpe_reported,
+                  // Circuit-specific data
+                  circuitData: data.exercise.is_circuit_format ? {
+                    reps_per_circuit: data.reps_per_circuit,
+                    rpe_per_circuit: data.rpe_per_circuit,
+                    technique_per_circuit: data.technique_per_circuit,
+                    actual_rest_between_circuits: Array(data.reps_per_circuit.length).fill(data.exercise.rest_between_circuits || 90)
+                  } : undefined
                 }))
                 
                 onSessionComplete({
@@ -341,31 +388,69 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
 
             {/* Exercise Details - Different display for different exercise types */}
             {currentExercise.type === 'main' && (
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <div className="text-2xl font-bold text-primary">
-                    {currentExercise.sets || 3}
+              <>
+                {currentExercise.is_circuit_format ? (
+                  // Circuit format display
+                  <div className="grid grid-cols-4 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-primary">
+                        {currentExercise.circuits_planned || 3}
+                      </div>
+                      <p className="text-sm text-muted-foreground">Circuitos</p>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-orange-600">
+                        #{currentExercise.circuit_position || 1}
+                      </div>
+                      <p className="text-sm text-muted-foreground">Posición</p>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {currentExercise.duration_seconds ? 
+                          `${currentExercise.duration_seconds}s` : 
+                          `${currentExercise.reps || 10} reps`
+                        }
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {currentExercise.duration_seconds ? 'Duración' : 'Repeticiones'}
+                      </p>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {currentExercise.rest_between_circuits || 90}s
+                      </div>
+                      <p className="text-sm text-muted-foreground">Descanso entre circuitos</p>
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">Series</p>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-green-600">
-                    {currentExercise.duration_seconds ? 
-                      `${currentExercise.duration_seconds}s` : 
-                      `${currentExercise.reps || 10} reps`
-                    }
+                ) : (
+                  // Traditional format display
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-primary">
+                        {currentExercise.sets || 3}
+                      </div>
+                      <p className="text-sm text-muted-foreground">Series</p>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {currentExercise.duration_seconds ? 
+                          `${currentExercise.duration_seconds}s` : 
+                          `${currentExercise.reps || 10} reps`
+                        }
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {currentExercise.duration_seconds ? 'Duración' : 'Repeticiones'}
+                      </p>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {currentExercise.rest_seconds || 60}s
+                      </div>
+                      <p className="text-sm text-muted-foreground">Descanso</p>
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {currentExercise.duration_seconds ? 'Duración' : 'Repeticiones'}
-                  </p>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {currentExercise.rest_seconds || 60}s
-                  </div>
-                  <p className="text-sm text-muted-foreground">Descanso</p>
-                </div>
-              </div>
+                )}
+              </>
             )}
 
             {/* Warm-up and Cool-down exercise details */}
@@ -457,7 +542,76 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {currentExercise.duration_seconds ? (
+                  {currentExercise.is_circuit_format ? (
+                    // Circuit format - performance per circuit
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Rendimiento por Circuito</Label>
+                        <div className="space-y-3">
+                          {currentPerformance.reps_per_circuit.map((reps, circuitIndex) => (
+                            <div key={circuitIndex} className="p-3 border rounded-lg space-y-2">
+                              <Label className="font-semibold">Circuito {circuitIndex + 1}</Label>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                  <Label className="text-xs">Repeticiones</Label>
+                                  <Input
+                                    type="number"
+                                    value={reps}
+                                    onChange={(e) => {
+                                      const newReps = [...currentPerformance.reps_per_circuit]
+                                      newReps[circuitIndex] = parseInt(e.target.value) || 0
+                                      setCurrentPerformance(prev => ({
+                                        ...prev,
+                                        reps_per_circuit: newReps
+                                      }))
+                                    }}
+                                    placeholder={`${currentExercise.reps || 10}`}
+                                    className="h-8"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">RPE</Label>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    max="10"
+                                    value={currentPerformance.rpe_per_circuit[circuitIndex]}
+                                    onChange={(e) => {
+                                      const newRpe = [...currentPerformance.rpe_per_circuit]
+                                      newRpe[circuitIndex] = parseInt(e.target.value) || 5
+                                      setCurrentPerformance(prev => ({
+                                        ...prev,
+                                        rpe_per_circuit: newRpe
+                                      }))
+                                    }}
+                                    className="h-8"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Técnica</Label>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    max="5"
+                                    value={currentPerformance.technique_per_circuit[circuitIndex]}
+                                    onChange={(e) => {
+                                      const newTechnique = [...currentPerformance.technique_per_circuit]
+                                      newTechnique[circuitIndex] = parseInt(e.target.value) || 4
+                                      setCurrentPerformance(prev => ({
+                                        ...prev,
+                                        technique_per_circuit: newTechnique
+                                      }))
+                                    }}
+                                    className="h-8"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : currentExercise.duration_seconds ? (
                     // Time-based exercise
                     <div>
                       <Label>Tiempo mantenido (segundos)</Label>
@@ -499,70 +653,74 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
                     </div>
                   )}
 
-                  <div>
-                    <Label>RPE (Esfuerzo Percibido 1-10)</Label>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPerformance(prev => ({
-                          ...prev,
-                          rpe_reported: Math.max(1, prev.rpe_reported - 1)
-                        }))}
-                        disabled={currentPerformance.rpe_reported <= 1}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <div className="w-12 text-center font-semibold">
-                        {currentPerformance.rpe_reported}
+                  {!currentExercise.is_circuit_format && (
+                    <>
+                      <div>
+                        <Label>RPE (Esfuerzo Percibido 1-10)</Label>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPerformance(prev => ({
+                              ...prev,
+                              rpe_reported: Math.max(1, prev.rpe_reported - 1)
+                            }))}
+                            disabled={currentPerformance.rpe_reported <= 1}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <div className="w-12 text-center font-semibold">
+                            {currentPerformance.rpe_reported}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPerformance(prev => ({
+                              ...prev,
+                              rpe_reported: Math.min(10, prev.rpe_reported + 1)
+                            }))}
+                            disabled={currentPerformance.rpe_reported >= 10}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPerformance(prev => ({
-                          ...prev,
-                          rpe_reported: Math.min(10, prev.rpe_reported + 1)
-                        }))}
-                        disabled={currentPerformance.rpe_reported >= 10}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
 
-                  <div>
-                    <Label>Calidad Técnica (1-5)</Label>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPerformance(prev => ({
-                          ...prev,
-                          technical_quality: Math.max(1, prev.technical_quality - 1)
-                        }))}
-                        disabled={currentPerformance.technical_quality <= 1}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <div className="w-12 text-center font-semibold">
-                        {currentPerformance.technical_quality}
+                      <div>
+                        <Label>Calidad Técnica (1-5)</Label>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPerformance(prev => ({
+                              ...prev,
+                              technical_quality: Math.max(1, prev.technical_quality - 1)
+                            }))}
+                            disabled={currentPerformance.technical_quality <= 1}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <div className="w-12 text-center font-semibold">
+                            {currentPerformance.technical_quality}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPerformance(prev => ({
+                              ...prev,
+                              technical_quality: Math.min(5, prev.technical_quality + 1)
+                            }))}
+                            disabled={currentPerformance.technical_quality >= 5}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          1=Pobre, 2=Regular, 3=Buena, 4=Muy buena, 5=Perfecta
+                        </p>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPerformance(prev => ({
-                          ...prev,
-                          technical_quality: Math.min(5, prev.technical_quality + 1)
-                        }))}
-                        disabled={currentPerformance.technical_quality >= 5}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      1=Pobre, 2=Regular, 3=Buena, 4=Muy buena, 5=Perfecta
-                    </p>
-                  </div>
+                    </>
+                  )}
 
                   <div className="flex gap-2">
                     <Button onClick={saveExercisePerformance} className="flex items-center gap-2">
@@ -660,10 +818,18 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
                       </Badge>
                       {exercise.type === 'main' && (
                         <span className="text-xs text-muted-foreground">
-                          {exercise.duration_seconds ? 
-                            `${exercise.sets || 1}x${exercise.duration_seconds}s` :
-                            `${exercise.sets || 1}x${exercise.reps || 10}`
-                          }
+                          {exercise.is_circuit_format ? (
+                            <>
+                              {exercise.duration_seconds ? 
+                                `${exercise.circuits_planned || 3} circuitos x ${exercise.duration_seconds}s (pos. ${exercise.circuit_position})` :
+                                `${exercise.circuits_planned || 3} circuitos x ${exercise.reps || 10} reps (pos. ${exercise.circuit_position})`
+                              }
+                            </>
+                          ) : (
+                            exercise.duration_seconds ? 
+                              `${exercise.sets || 1}x${exercise.duration_seconds}s` :
+                              `${exercise.sets || 1}x${exercise.reps || 10}`
+                          )}
                         </span>
                       )}
                       {(exercise.type === 'warmup' || exercise.type === 'cooldown') && (

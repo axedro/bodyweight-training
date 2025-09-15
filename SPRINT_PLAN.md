@@ -12,8 +12,9 @@
 - ✅ **Sistema de feedback por ejercicio** completamente funcional
 - ✅ **Análisis de grupos musculares** con visualizaciones
 - ✅ **Flujo end-to-end** sin errores: registro → rutina → feedback → progreso
-- ✅ **9 migraciones de base de datos** aplicadas
-- ✅ **Algoritmo adaptativo** con todas las mejoras
+- ✅ **14 migraciones de base de datos** aplicadas (incluye circuit support)
+- ✅ **Algoritmo adaptativo** con todas las mejoras + formato circuito
+- ✅ **Circuit Training** completo con duración inteligente
 
 #### **🔧 Últimas Mejoras Técnicas Implementadas**
 - ✅ **Creación automática de session_exercises** con IDs reales en Edge Functions
@@ -25,21 +26,25 @@
 - ✅ **Integración completa** frontend ↔ backend ↔ base de datos
 
 #### **🔄 SPRINT 2.9: Sistema de Circuitos Inteligente (COMPLETADO)**
-- ✅ **Algoritmo de duración inteligente**: Respeta duración elegida por usuario
-- ✅ **Cálculo temporal preciso**: Estima tiempo real basado en ejercicios + descansos
-- ✅ **Formato circuito**: Rotación de ejercicios con descansos optimizados
-- ✅ **Número de ejercicios variable**: 2-6 ejercicios según tiempo disponible (20-60min)
-- ✅ **Metadatos de circuito**: `circuit_info` con datos completos para tracking
-- ✅ **Estructura adaptativa**: Warmup y cooldown proporcionales a duración total
+- ✅ **Algoritmo de duración inteligente**: Respeta duración elegida por usuario (20-60 min)
+- ✅ **Cálculo temporal preciso**: Estima tiempo real basado en ejercicios + descansos entre ejercicios + circuitos
+- ✅ **Formato circuito**: Rotación de ejercicios (1→2→3→1→2→3) con descansos optimizados
+- ✅ **Número de ejercicios variable**: 2-6 ejercicios según tiempo disponible e ICA del usuario
+- ✅ **Migration 014**: Campos de circuito añadidos a session_exercises, exercise_performance, training_sessions
+- ✅ **Frontend actualizado**: UI específica para circuitos con feedback por ronda
+- ✅ **API completa**: save-session-feedback maneja datos de circuito correctamente
+- ✅ **Tipos actualizados**: ExerciseBlock y SessionExercise con campos de circuito
 
 #### **💾 Base de Datos Final**
 ```sql
-- training_sessions      ✅ Con datos de duración e intensidad
-- session_exercises      ✅ Con duration_seconds y tracking completo  
-- exercise_performance   ✅ Con sets_completed y muscle_groups
+- training_sessions      ✅ Con session_format, circuit metadata y datos completos
+- session_exercises      ✅ Con circuit fields: is_circuit_format, circuits_planned/completed, circuit_position
+- exercise_performance   ✅ Con circuit arrays: circuit_rpe[], circuit_technique_quality[], circuit_data JSONB
 - muscle_group_metrics   ✅ Análisis semanal automatizado
 - exercises              ✅ 117 ejercicios + alternativas
 - user_profiles         ✅ Onboarding completo
+- algorithm_state_history ✅ Tracking temporal de ICA
+- biometric_snapshots    ✅ Seguimiento de métricas biológicas
 ```
 
 ---
