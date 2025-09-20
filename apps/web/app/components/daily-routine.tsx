@@ -678,8 +678,34 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
                         placeholder={`Objetivo: ${currentExercise.duration_seconds}s`}
                       />
                     </div>
+                  ) : (session as any).circuit_info ? (
+                    // Circuit format - Reps-based exercise
+                    <div>
+                      <Label>Repeticiones por ronda</Label>
+                      <div className="space-y-2">
+                        {currentPerformance.reps_per_set.map((reps, setIndex) => (
+                          <div key={setIndex} className="flex items-center gap-2">
+                            <Label className="w-16">Ronda {setIndex + 1}:</Label>
+                            <Input
+                              type="number"
+                              value={reps}
+                              onChange={(e) => {
+                                const newReps = [...currentPerformance.reps_per_set]
+                                newReps[setIndex] = parseInt(e.target.value) || 0
+                                setCurrentPerformance(prev => ({
+                                  ...prev,
+                                  reps_per_set: newReps
+                                }))
+                              }}
+                              placeholder={`Objetivo: ${currentExercise.reps}`}
+                              className="w-20"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   ) : (
-                    // Reps-based exercise
+                    // Traditional format - Reps-based exercise
                     <div>
                       <Label>Repeticiones por serie</Label>
                       <div className="space-y-2">
