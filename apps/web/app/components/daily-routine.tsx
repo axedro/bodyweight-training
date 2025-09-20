@@ -56,7 +56,19 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
 
   const allExercises = [
     ...session.warm_up.map(ex => ({ ...ex.exercise, type: 'warmup', ...ex })),
-    ...session.exercise_blocks.map(block => ({ ...block.exercise, type: 'main', ...block })),
+    // For circuit format, repeat exercise blocks for each circuit
+    ...(((session as any).circuit_info)
+      ? Array.from({ length: (session as any).circuit_info.total_circuits }, (_, circuitIndex) =>
+          session.exercise_blocks.map(block => ({
+            ...block.exercise,
+            type: 'main',
+            ...block,
+            circuit_number: circuitIndex + 1,
+            is_circuit_format: true
+          }))
+        ).flat()
+      : session.exercise_blocks.map(block => ({ ...block.exercise, type: 'main', ...block }))
+    ),
     ...session.cool_down.map(ex => ({ ...ex.exercise, type: 'cooldown', ...ex }))
   ]
 
@@ -94,17 +106,15 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
     // Initialize performance data based on exercise type
     if (exercise.type === 'main') {
       // Check if this is circuit format
-      if (exercise.is_circuit_format) {
-        const defaultRepsPerCircuit = Array(exercise.circuits_planned || 3).fill(exercise.reps || 10)
-        const defaultRpePerCircuit = Array(exercise.circuits_planned || 3).fill(5)
-        const defaultTechniquePerCircuit = Array(exercise.circuits_planned || 3).fill(4)
+      if (exercise.is_circuit_format || exercise.circuit_number) {
+        // For circuit format, each exercise instance represents one round
         setCurrentPerformance({
-          sets_completed: 0,
-          reps_per_set: [],
-          circuits_completed: exercise.circuits_planned || 3,
-          reps_per_circuit: defaultRepsPerCircuit,
-          rpe_per_circuit: defaultRpePerCircuit,
-          technique_per_circuit: defaultTechniquePerCircuit,
+          sets_completed: 1,
+          reps_per_set: [exercise.reps || 10], // One entry for this round
+          circuits_completed: 0,
+          reps_per_circuit: [],
+          rpe_per_circuit: [],
+          technique_per_circuit: [],
           total_time_seconds: exercise.duration_seconds || 0,
           rpe_reported: 5,
           technical_quality: 4
@@ -274,31 +284,68 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
                   : 4
                 
                 // Convert performance data to the format expected by the API
-                const exercisePerformance = performanceDataArray.map((data) => ({
-                  sessionExerciseId: data.exercise.session_exercise_id || `temp_${data.exercise.id}`,
-                  exerciseId: data.exercise.id,
-                  setNumber: 1,
-                  repsCompleted: data.exercise.is_circuit_format 
-                    ? data.reps_per_circuit.reduce((sum: number, reps: number) => sum + reps, 0)
-                    : data.reps_per_set.reduce((sum: number, reps: number) => sum + reps, 0),
-                  rpeReported: data.exercise.is_circuit_format
-                    ? data.rpe_per_circuit.reduce((sum: number, rpe: number) => sum + rpe, 0) / data.rpe_per_circuit.length
-                    : data.rpe_reported,
-                  techniqueQuality: data.exercise.is_circuit_format
-                    ? data.technique_per_circuit.reduce((sum: number, tech: number) => sum + tech, 0) / data.technique_per_circuit.length
-                    : data.technical_quality,
-                  restTimeActual: data.exercise.rest_seconds || 60,
-                  difficultyPerceived: data.exercise.is_circuit_format
-                    ? data.rpe_per_circuit.reduce((sum: number, rpe: number) => sum + rpe, 0) / data.rpe_per_circuit.length
-                    : data.rpe_reported,
-                  // Circuit-specific data
-                  circuitData: data.exercise.is_circuit_format ? {
-                    reps_per_circuit: data.reps_per_circuit,
-                    rpe_per_circuit: data.rpe_per_circuit,
-                    technique_per_circuit: data.technique_per_circuit,
-                    actual_rest_between_circuits: Array(data.reps_per_circuit.length).fill(data.exercise.rest_between_circuits || 90)
-                  } : undefined
-                }))
+                let exercisePerformance: any[] = []
+
+                if ((session as any).circuit_info) {
+                  // Circuit format: Group exercises by exercise_id and combine data from all rounds
+                  const exerciseGroups = new Map<string, any[]>()
+
+                  // Group performance data by exercise ID
+                  performanceDataArray.forEach(data => {
+                    const exerciseId = data.exercise.id
+                    if (!exerciseGroups.has(exerciseId)) {
+                      exerciseGroups.set(exerciseId, [])
+                    }
+                    exerciseGroups.get(exerciseId)!.push(data)
+                  })
+
+                  // Create consolidated performance data for each unique exercise
+                  exercisePerformance = Array.from(exerciseGroups.entries()).map(([exerciseId, dataArray]) => {
+                    // Combine data from all rounds of this exercise
+                    const allReps: number[] = []
+                    const allRpe: number[] = []
+                    const allTechnique: number[] = []
+
+                    dataArray.forEach(data => {
+                      if (data.exercise.is_circuit_format) {
+                        // For circuit format, we now have one entry per round
+                        allReps.push(data.reps_per_set[0] || 0) // Each round has one entry
+                        allRpe.push(data.rpe_reported || 5)
+                        allTechnique.push(data.technical_quality || 4)
+                      }
+                    })
+
+                    return {
+                      sessionExerciseId: dataArray[0].exercise.session_exercise_id || `temp_${exerciseId}`,
+                      exerciseId: exerciseId,
+                      setNumber: 1,
+                      repsCompleted: allReps.reduce((sum, reps) => sum + reps, 0),
+                      rpeReported: allRpe.length > 0 ? allRpe.reduce((sum, rpe) => sum + rpe, 0) / allRpe.length : 5,
+                      techniqueQuality: allTechnique.length > 0 ? allTechnique.reduce((sum, tech) => sum + tech, 0) / allTechnique.length : 4,
+                      restTimeActual: dataArray[0].exercise.rest_seconds || 60,
+                      difficultyPerceived: allRpe.length > 0 ? allRpe.reduce((sum, rpe) => sum + rpe, 0) / allRpe.length : 5,
+                      // Circuit-specific data
+                      circuitData: {
+                        reps_per_circuit: allReps,
+                        rpe_per_circuit: allRpe,
+                        technique_per_circuit: allTechnique,
+                        actual_rest_between_circuits: Array(allReps.length).fill(dataArray[0].exercise.rest_between_circuits || 90)
+                      }
+                    }
+                  })
+                } else {
+                  // Traditional format: Each exercise is individual
+                  exercisePerformance = performanceDataArray.map((data) => ({
+                    sessionExerciseId: data.exercise.session_exercise_id || `temp_${data.exercise.id}`,
+                    exerciseId: data.exercise.id,
+                    setNumber: 1,
+                    repsCompleted: data.reps_per_set.reduce((sum: number, reps: number) => sum + reps, 0),
+                    rpeReported: data.rpe_reported,
+                    techniqueQuality: data.technical_quality,
+                    restTimeActual: data.exercise.rest_seconds || 60,
+                    difficultyPerceived: data.rpe_reported
+                  }))
+                }
                 
                 onSessionComplete({
                   completion_rate: completedExercises.size / allExercises.length,
@@ -439,7 +486,7 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
                       <div className="flex items-center justify-center gap-2 mb-1">
                         <RefreshCw className="h-4 w-4 text-blue-600" />
                         <span className="text-sm font-semibold text-blue-900">
-                          Ejercicio {currentExerciseIndex + 1 - session.warm_up.length} de {session.circuit_info.exercises_per_circuit}
+                          Ejercicio {((currentExerciseIndex - session.warm_up.length) % session.exercise_blocks.length) + 1} de {session.circuit_info.exercises_per_circuit}
                         </span>
                       </div>
                       <p className="text-xs text-blue-700">
@@ -469,10 +516,19 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
                     </div>
 
                     <div className="text-center text-sm text-muted-foreground">
-                      {currentExerciseIndex >= session.warm_up.length + session.exercise_blocks.length * Math.floor((currentExerciseIndex - session.warm_up.length) / session.exercise_blocks.length + 1)
-                        ? 'Última ronda del circuito'
-                        : `Ronda ${Math.floor((currentExerciseIndex - session.warm_up.length) / session.exercise_blocks.length) + 1} de ${session.circuit_info.total_circuits}`
-                      }
+                      {(() => {
+                        if (currentExerciseIndex < session.warm_up.length) return '';
+                        const circuitPosition = currentExerciseIndex - session.warm_up.length;
+                        const currentCircuit = Math.floor(circuitPosition / session.exercise_blocks.length) + 1;
+                        const isLastCircuit = currentCircuit === (session as any).circuit_info.total_circuits;
+                        const exerciseInCircuit = (circuitPosition % session.exercise_blocks.length) + 1;
+                        const isLastExerciseInCircuit = exerciseInCircuit === session.exercise_blocks.length;
+
+                        if (isLastCircuit && isLastExerciseInCircuit) {
+                          return 'Última ronda del circuito';
+                        }
+                        return `Ronda ${currentCircuit} de ${(session as any).circuit_info.total_circuits}`;
+                      })()}
                     </div>
                   </div>
                 ) : (
@@ -595,72 +651,69 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {currentExercise.is_circuit_format ? (
-                    // Circuit format - performance per circuit
+                  {(currentExercise.is_circuit_format || currentExercise.circuit_number) ? (
+                    // Circuit format - performance for this round only
                     <div className="space-y-4">
-                      <div>
-                        <Label>Rendimiento por Circuito</Label>
-                        <div className="space-y-3">
-                          {currentPerformance.reps_per_circuit.map((reps, circuitIndex) => (
-                            <div key={circuitIndex} className="p-3 border rounded-lg space-y-2">
-                              <Label className="font-semibold">Circuito {circuitIndex + 1}</Label>
-                              <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                  <Label className="text-xs">Repeticiones</Label>
-                                  <Input
-                                    type="number"
-                                    value={reps}
-                                    onChange={(e) => {
-                                      const newReps = [...currentPerformance.reps_per_circuit]
-                                      newReps[circuitIndex] = parseInt(e.target.value) || 0
-                                      setCurrentPerformance(prev => ({
-                                        ...prev,
-                                        reps_per_circuit: newReps
-                                      }))
-                                    }}
-                                    placeholder={`${currentExercise.reps || 10}`}
-                                    className="h-8"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">RPE</Label>
-                                  <Input
-                                    type="number"
-                                    min="1"
-                                    max="10"
-                                    value={currentPerformance.rpe_per_circuit[circuitIndex]}
-                                    onChange={(e) => {
-                                      const newRpe = [...currentPerformance.rpe_per_circuit]
-                                      newRpe[circuitIndex] = parseInt(e.target.value) || 5
-                                      setCurrentPerformance(prev => ({
-                                        ...prev,
-                                        rpe_per_circuit: newRpe
-                                      }))
-                                    }}
-                                    className="h-8"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Técnica</Label>
-                                  <Input
-                                    type="number"
-                                    min="1"
-                                    max="5"
-                                    value={currentPerformance.technique_per_circuit[circuitIndex]}
-                                    onChange={(e) => {
-                                      const newTechnique = [...currentPerformance.technique_per_circuit]
-                                      newTechnique[circuitIndex] = parseInt(e.target.value) || 4
-                                      setCurrentPerformance(prev => ({
-                                        ...prev,
-                                        technique_per_circuit: newTechnique
-                                      }))
-                                    }}
-                                    className="h-8"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+                      <div className="text-center p-3 bg-blue-50 rounded-lg border">
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                          <RefreshCw className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-semibold text-blue-900">
+                            Ronda {currentExercise.circuit_number || 1}
+                          </span>
+                        </div>
+                        <p className="text-xs text-blue-700">
+                          {currentExercise.name}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <Label>Repeticiones</Label>
+                          <Input
+                            type="number"
+                            value={currentPerformance.reps_per_set[0] || 0}
+                            onChange={(e) => {
+                              const newReps = [parseInt(e.target.value) || 0]
+                              setCurrentPerformance(prev => ({
+                                ...prev,
+                                reps_per_set: newReps
+                              }))
+                            }}
+                            placeholder={`Objetivo: ${currentExercise.reps || 10}`}
+                            className="text-center"
+                          />
+                        </div>
+                        <div>
+                          <Label>RPE (1-10)</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={currentPerformance.rpe_reported}
+                            onChange={(e) => {
+                              setCurrentPerformance(prev => ({
+                                ...prev,
+                                rpe_reported: parseInt(e.target.value) || 5
+                              }))
+                            }}
+                            className="text-center"
+                          />
+                        </div>
+                        <div>
+                          <Label>Técnica (1-5)</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="5"
+                            value={currentPerformance.technical_quality}
+                            onChange={(e) => {
+                              setCurrentPerformance(prev => ({
+                                ...prev,
+                                technical_quality: parseInt(e.target.value) || 4
+                              }))
+                            }}
+                            className="text-center"
+                          />
                         </div>
                       </div>
                     </div>
