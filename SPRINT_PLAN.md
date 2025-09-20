@@ -25,7 +25,7 @@
 - ✅ **Sistema de análisis de evolución temporal** con predicciones de ICA
 - ✅ **Integración completa** frontend ↔ backend ↔ base de datos
 
-#### **🔄 SPRINT 2.9: Sistema de Circuitos Inteligente (COMPLETADO)**
+#### **🔄 SPRINT 2.9: Sistema de Circuitos Inteligente (COMPLETADO) - Critical Fixes**
 - ✅ **Algoritmo de duración inteligente**: Respeta duración elegida por usuario (20-60 min)
 - ✅ **Cálculo temporal preciso**: Estima tiempo real basado en ejercicios + descansos entre ejercicios + circuitos
 - ✅ **Formato circuito**: Rotación de ejercicios (1→2→3→1→2→3) con descansos optimizados
@@ -34,6 +34,15 @@
 - ✅ **Frontend actualizado**: UI específica para circuitos con feedback por ronda
 - ✅ **API completa**: save-session-feedback maneja datos de circuito correctamente
 - ✅ **Tipos actualizados**: ExerciseBlock y SessionExercise con campos de circuito
+
+#### **🚨 SPRINT 2.9.1: Critical Circuit Execution Fixes (COMPLETADO)**
+- ✅ **Fixed Circuit Termination**: Resuelto problema de terminación prematura en segunda ronda
+- ✅ **Exercise Array Expansion**: allExercises ahora incluye Exercise × Total_Circuits correctamente
+- ✅ **Feedback Terminology**: "Repeticiones por ronda" y "Ronda X" en lugar de "por serie"
+- ✅ **Data Collection Redesign**: UI simplificada para captura de datos por ronda individual
+- ✅ **Performance Data Aggregation**: Agrupación inteligente por exercise_id para API
+- ✅ **Circuit Progress Indicators**: Indicadores correctos de "Ejercicio X de Y" y "Ronda X de Y"
+- ✅ **Enhanced save-session-feedback**: Manejo mejorado de circuitData con arrays por ronda
 
 #### **💾 Base de Datos Final**
 ```sql

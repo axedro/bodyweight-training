@@ -341,10 +341,10 @@ type AppState = 'loading' | 'auth' | 'onboarding' | 'dashboard'
   - ❌ Errors
   - ✅ Success operations
 
-## ✅ SISTEMA COMPLETAMENTE FUNCIONAL (Sprint 2.8 - Septiembre 2025)
+## ✅ SISTEMA COMPLETAMENTE FUNCIONAL (Sprint 2.9 - Septiembre 2025)
 
 ### **Estado Actual: PRODUCCIÓN LISTA**
-El sistema está completamente integrado y funcional con todas las características implementadas y debuggeadas:
+El sistema está completamente integrado y funcional con todas las características implementadas y debuggeadas, incluyendo las últimas mejoras críticas de ejecución de circuitos:
 
 #### **✅ Sistema Completo Funcionando**
 - ✅ All UI components are implemented and functional
@@ -373,6 +373,14 @@ El sistema está completamente integrado y funcional con todas las característi
 - **Full Routine Structure**: Calentamiento → Ejercicios principales → Enfriamiento
 - **Real Session Tracking**: Feedback por ejercicio con datos reales de rendimiento
 - **Progressive System**: Sistema de progresión automática basado en rendimiento
+
+**4. Circuit Training System - Critical Fixes (Sprint 2.9)**
+- **✅ Complete Circuit Execution**: Fixed premature termination - now executes all planned rounds
+- **✅ Proper Exercise Expansion**: allExercises array correctly includes Exercise × Rounds
+- **✅ Round-based Feedback**: UI shows "Ronda X" instead of confusing multi-circuit forms
+- **✅ Granular Data Collection**: Per-exercise per-round performance tracking (reps, RPE, technique)
+- **✅ Intelligent Data Aggregation**: Groups circuit data by exercise_id for save-session-feedback
+- **✅ Enhanced Progression Logic**: Circuit-aware progression using real performance data
 
 #### **✅ Verification Status (All Tests Passed)**
 

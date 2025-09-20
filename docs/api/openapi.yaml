@@ -13,11 +13,13 @@ info:
     - **Biometric Tracking**: Temporal storage and analysis of biometric indicators for enhanced personalization
 
     ## Key Features
-    
+
     - 🧠 **Adaptive Algorithm**: ICA (Index of Current Ability) calculation for personalized training
     - 💪 **Progressive System**: 7-level progression for each movement pattern
-    - 📊 **Comprehensive Analytics**: Muscle group analysis, evolution tracking, and performance metrics  
+    - 🔄 **Circuit Training**: Duration-aware intelligent circuit generation with automatic exercise rotation
+    - 📊 **Comprehensive Analytics**: Muscle group analysis, evolution tracking, and performance metrics
     - 🩺 **Biometric Integration**: Historical tracking of weight, body composition, sleep, and recovery data
+    - 🎯 **Granular Feedback**: Per-exercise per-round performance tracking for circuit and traditional formats
     - 🔄 **Real-time Adaptation**: Continuous learning from user feedback and performance
     - 🛡️ **Security First**: Row Level Security (RLS) ensures user data isolation
 
@@ -44,7 +46,7 @@ info:
     - `404` - Not Found (resource doesn't exist)
     - `500` - Internal Server Error
 
-  version: '2.8.0'
+  version: '2.9.0'
   contact:
     name: API Support
     url: https://github.com/anthropics/claude-code/issues
@@ -528,6 +530,47 @@ components:
           minimum: 1
           maximum: 10
           description: Perceived difficulty
+        circuitData:
+          type: object
+          description: Circuit-specific performance data (only for circuit format exercises)
+          properties:
+            reps_per_circuit:
+              type: array
+              items:
+                type: integer
+                minimum: 0
+              description: Repetitions completed per circuit round
+              example: [10, 8, 6, 4]
+            rpe_per_circuit:
+              type: array
+              items:
+                type: integer
+                minimum: 1
+                maximum: 10
+              description: RPE reported per circuit round
+              example: [6, 7, 8, 9]
+            technique_per_circuit:
+              type: array
+              items:
+                type: integer
+                minimum: 1
+                maximum: 5
+              description: Technique quality per circuit round
+              example: [5, 4, 3, 3]
+            actual_rest_between_circuits:
+              type: array
+              items:
+                type: integer
+                minimum: 0
+              description: Actual rest time between circuits in seconds
+              example: [90, 85, 80]
+            actual_rest_between_exercises:
+              type: array
+              items:
+                type: integer
+                minimum: 0
+              description: Actual rest time between exercises in circuit in seconds
+              example: [15, 18, 20, 22]
       required:
         - sessionExerciseId
         - exerciseId
@@ -537,10 +580,16 @@ components:
         sessionExerciseId: "123e4567-e89b-12d3-a456-426614174000"
         exerciseId: "550e8400-e29b-41d4-a716-446655440000"
         setNumber: 1
-        repsCompleted: 10
+        repsCompleted: 28
         rpeReported: 7
         techniqueQuality: 4
-        restTimeActual: 65
+        restTimeActual: 60
+        difficultyPerceived: 7
+        circuitData:
+          reps_per_circuit: [10, 8, 6, 4]
+          rpe_per_circuit: [6, 7, 8, 9]
+          technique_per_circuit: [5, 4, 3, 3]
+          actual_rest_between_circuits: [90, 85, 80]
 
     MuscleGroupAnalysis:
       type: object
