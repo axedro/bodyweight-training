@@ -16,7 +16,10 @@ interface TrainingHistoryProps {
 export function TrainingHistory({ userProfile }: TrainingHistoryProps) {
   const [sessions, setSessions] = useState<TrainingSession[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   useEffect(() => {
     loadTrainingHistory()

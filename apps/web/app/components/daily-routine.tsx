@@ -329,32 +329,75 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">
-                {completedExercises.size}/{allExercises.length}
+          {session.circuit_info ? (
+            // Circuit format display
+            <div className="space-y-4">
+              <div className="text-center p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <RefreshCw className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-blue-900">Entrenamiento en Circuito</h3>
+                </div>
+                <p className="text-sm text-blue-700">
+                  {session.circuit_info.exercises_per_circuit} ejercicios × {session.circuit_info.total_circuits} rondas
+                </p>
               </div>
-              <p className="text-sm text-muted-foreground">Ejercicios</p>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
-                {session.duration_minutes}min
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">
+                    {session.circuit_info.total_circuits}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Circuitos</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {session.circuit_info.exercises_per_circuit}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Ejercicios</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {session.circuit_info.estimated_duration}min
+                  </div>
+                  <p className="text-sm text-muted-foreground">Duración</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {session.circuit_info.rest_between_circuits}s
+                  </div>
+                  <p className="text-sm text-muted-foreground">Descanso</p>
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground">Duración</p>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {Math.round(session.intensity * 100)}%
+          ) : (
+            // Traditional format display
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-primary">
+                  {completedExercises.size}/{allExercises.length}
+                </div>
+                <p className="text-sm text-muted-foreground">Ejercicios</p>
               </div>
-              <p className="text-sm text-muted-foreground">Intensidad</p>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">
-                2h
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  {session.duration_minutes}min
+                </div>
+                <p className="text-sm text-muted-foreground">Duración</p>
               </div>
-              <p className="text-sm text-muted-foreground">Recuperación</p>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {Math.round(session.intensity * 100)}%
+                </div>
+                <p className="text-sm text-muted-foreground">Intensidad</p>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">
+                  2h
+                </div>
+                <p className="text-sm text-muted-foreground">Recuperación</p>
+              </div>
             </div>
-          </div>
+          )}
           
           <div className="mt-4">
             <div className="flex justify-between text-sm mb-2">
@@ -389,37 +432,47 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
             {/* Exercise Details - Different display for different exercise types */}
             {currentExercise.type === 'main' && (
               <>
-                {currentExercise.is_circuit_format ? (
+                {session.circuit_info ? (
                   // Circuit format display
-                  <div className="grid grid-cols-4 gap-4 text-center">
-                    <div>
-                      <div className="text-2xl font-bold text-primary">
-                        {currentExercise.circuits_planned || 3}
+                  <div className="space-y-4">
+                    <div className="text-center p-3 bg-blue-50 rounded-lg border">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <RefreshCw className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm font-semibold text-blue-900">
+                          Ejercicio {currentExerciseIndex + 1 - session.warm_up.length} de {session.circuit_info.exercises_per_circuit}
+                        </span>
                       </div>
-                      <p className="text-sm text-muted-foreground">Circuitos</p>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-orange-600">
-                        #{currentExercise.circuit_position || 1}
-                      </div>
-                      <p className="text-sm text-muted-foreground">Posición</p>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-green-600">
-                        {currentExercise.duration_seconds ? 
-                          `${currentExercise.duration_seconds}s` : 
-                          `${currentExercise.reps || 10} reps`
-                        }
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {currentExercise.duration_seconds ? 'Duración' : 'Repeticiones'}
+                      <p className="text-xs text-blue-700">
+                        Realizar {session.circuit_info.total_circuits} rondas del circuito completo
                       </p>
                     </div>
-                    <div>
-                      <div className="text-2xl font-bold text-blue-600">
-                        {currentExercise.rest_between_circuits || 90}s
+
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-primary">
+                          {currentExercise.reps || 10}
+                        </div>
+                        <p className="text-sm text-muted-foreground">Repeticiones</p>
                       </div>
-                      <p className="text-sm text-muted-foreground">Descanso entre circuitos</p>
+                      <div>
+                        <div className="text-2xl font-bold text-orange-600">
+                          {session.circuit_info.rest_between_exercises}s
+                        </div>
+                        <p className="text-sm text-muted-foreground">Descanso siguiente</p>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {session.circuit_info.rest_between_circuits}s
+                        </div>
+                        <p className="text-sm text-muted-foreground">Descanso circuito</p>
+                      </div>
+                    </div>
+
+                    <div className="text-center text-sm text-muted-foreground">
+                      {currentExerciseIndex >= session.warm_up.length + session.exercise_blocks.length * Math.floor((currentExerciseIndex - session.warm_up.length) / session.exercise_blocks.length + 1)
+                        ? 'Última ronda del circuito'
+                        : `Ronda ${Math.floor((currentExerciseIndex - session.warm_up.length) / session.exercise_blocks.length) + 1} de ${session.circuit_info.total_circuits}`
+                      }
                     </div>
                   </div>
                 ) : (
@@ -433,8 +486,8 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-green-600">
-                        {currentExercise.duration_seconds ? 
-                          `${currentExercise.duration_seconds}s` : 
+                        {currentExercise.duration_seconds ?
+                          `${currentExercise.duration_seconds}s` :
                           `${currentExercise.reps || 10} reps`
                         }
                       </div>
@@ -786,71 +839,181 @@ export function DailyRoutine({ session, onSessionComplete, onSessionSkip }: Dail
       {/* Exercise List */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Ejercicios</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            {(session as any).circuit_info ? (
+              <>
+                <RefreshCw className="h-5 w-5 text-blue-600" />
+                Plan de Circuito
+              </>
+            ) : (
+              'Lista de Ejercicios'
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            {allExercises.map((exercise, index) => (
-              <div 
-                key={index}
-                className={`flex items-center justify-between p-3 rounded-lg border ${
-                  index === currentExerciseIndex 
-                    ? 'border-primary bg-primary/5' 
-                    : completedExercises.has(index)
-                    ? 'border-green-200 bg-green-50'
-                    : 'border-gray-200'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {completedExercises.has(index) ? (
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  ) : (
-                    <Circle className="h-5 w-5 text-gray-400" />
-                  )}
-                  <div>
-                    <p className="font-medium">{exercise.name}</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge 
-                        variant="outline" 
-                        className={`text-xs ${getExerciseTypeColor(exercise.type)}`}
-                      >
-                        {getExerciseTypeLabel(exercise.type)}
-                      </Badge>
-                      {exercise.type === 'main' && (
+          {(session as any).circuit_info ? (
+            // Circuit format display
+            <div className="space-y-4">
+              {/* Warm-up */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">🔥 Calentamiento</h4>
+                <div className="space-y-2">
+                  {session.warm_up.map((exercise, index) => (
+                    <div
+                      key={index}
+                      className={`flex items-center justify-between p-2 rounded-lg border ${
+                        index === currentExerciseIndex
+                          ? 'border-primary bg-primary/5'
+                          : completedExercises.has(index)
+                          ? 'border-green-200 bg-green-50'
+                          : 'border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {completedExercises.has(index) ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <Circle className="h-4 w-4 text-gray-400" />
+                        )}
+                        <span className="text-sm">{exercise.exercise.name}</span>
                         <span className="text-xs text-muted-foreground">
-                          {exercise.is_circuit_format ? (
-                            <>
-                              {exercise.duration_seconds ? 
-                                `${exercise.circuits_planned || 3} circuitos x ${exercise.duration_seconds}s (pos. ${exercise.circuit_position})` :
-                                `${exercise.circuits_planned || 3} circuitos x ${exercise.reps || 10} reps (pos. ${exercise.circuit_position})`
-                              }
-                            </>
+                          {exercise.reps} reps
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Circuit exercises */}
+              <div>
+                <h4 className="text-sm font-semibold text-blue-700 mb-2">
+                  🔄 Circuito Principal ({(session as any).circuit_info.total_circuits} rondas)
+                </h4>
+                <div className="space-y-2">
+                  {session.exercise_blocks.map((exercise, index) => (
+                    <div
+                      key={index}
+                      className={`flex items-center justify-between p-3 rounded-lg border ${
+                        (currentExerciseIndex >= session.warm_up.length) &&
+                        ((currentExerciseIndex - session.warm_up.length) % session.exercise_blocks.length === index)
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-blue-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-semibold text-blue-700">
+                            {index + 1}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{exercise.exercise.name}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant="outline" className="text-xs">
+                              {exercise.exercise.category}
+                            </Badge>
+                            <span>{exercise.reps} reps por ronda</span>
+                          </div>
+                        </div>
+                      </div>
+                      {(currentExerciseIndex >= session.warm_up.length) &&
+                       ((currentExerciseIndex - session.warm_up.length) % session.exercise_blocks.length === index) && (
+                        <Badge className="bg-blue-600 text-white">
+                          Actual
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cool-down */}
+              <div>
+                <h4 className="text-sm font-semibold text-purple-700 mb-2">❄️ Enfriamiento</h4>
+                <div className="space-y-2">
+                  {session.cool_down.map((exercise, index) => {
+                    const cooldownIndex = session.warm_up.length + session.exercise_blocks.length * (session as any).circuit_info.total_circuits + index;
+                    return (
+                      <div
+                        key={index}
+                        className={`flex items-center justify-between p-2 rounded-lg border ${
+                          cooldownIndex === currentExerciseIndex
+                            ? 'border-primary bg-primary/5'
+                            : completedExercises.has(cooldownIndex)
+                            ? 'border-green-200 bg-green-50'
+                            : 'border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {completedExercises.has(cooldownIndex) ? (
+                            <CheckCircle className="h-4 w-4 text-green-600" />
                           ) : (
-                            exercise.duration_seconds ? 
+                            <Circle className="h-4 w-4 text-gray-400" />
+                          )}
+                          <span className="text-sm">{exercise.exercise.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {exercise.duration_seconds}s
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Traditional format display
+            <div className="space-y-2">
+              {allExercises.map((exercise, index) => (
+                <div
+                  key={index}
+                  className={`flex items-center justify-between p-3 rounded-lg border ${
+                    index === currentExerciseIndex
+                      ? 'border-primary bg-primary/5'
+                      : completedExercises.has(index)
+                      ? 'border-green-200 bg-green-50'
+                      : 'border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {completedExercises.has(index) ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <Circle className="h-5 w-5 text-gray-400" />
+                    )}
+                    <div>
+                      <p className="font-medium">{exercise.name}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${getExerciseTypeColor(exercise.type)}`}
+                        >
+                          {getExerciseTypeLabel(exercise.type)}
+                        </Badge>
+                        {exercise.type === 'main' && (
+                          <span className="text-xs text-muted-foreground">
+                            {exercise.duration_seconds ?
                               `${exercise.sets || 1}x${exercise.duration_seconds}s` :
                               `${exercise.sets || 1}x${exercise.reps || 10}`
-                          )}
-                        </span>
-                      )}
-                      {(exercise.type === 'warmup' || exercise.type === 'cooldown') && (
-                        <span className="text-xs text-muted-foreground">
-                          {exercise.duration_seconds ? 
-                            `${exercise.duration_seconds}s` :
-                            `${exercise.reps || 10} reps`
-                          }
-                        </span>
-                      )}
+                            }
+                          </span>
+                        )}
+                        {(exercise.type === 'warmup' || exercise.type === 'cooldown') && (
+                          <span className="text-xs text-muted-foreground">
+                            {exercise.duration_seconds ?
+                              `${exercise.duration_seconds}s` :
+                              `${exercise.reps || 10} reps`
+                            }
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-                {index === currentExerciseIndex && (
-                  <Badge className="bg-primary text-primary-foreground">
-                    Actual
-                  </Badge>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
