@@ -4,22 +4,43 @@ import React, { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Progress } from './ui/progress'
-import { 
-  Star, 
-  Heart, 
-  Zap, 
-  Target, 
+import {
+  Star,
+  Heart,
+  Zap,
+  Target,
   Smile,
   Frown,
   Meh
 } from 'lucide-react'
+import { SessionFeedbackCircuit } from './session-feedback-circuit'
 
 interface SessionFeedbackProps {
   onFeedbackSubmit: (feedback: any) => void
   onSkip: () => void
+  session?: any // Optional session data to detect circuit format
 }
 
-export function SessionFeedback({ onFeedbackSubmit, onSkip }: SessionFeedbackProps) {
+export function SessionFeedback({ onFeedbackSubmit, onSkip, session }: SessionFeedbackProps) {
+  // Check if this is a circuit format session
+  const isCircuitFormat = session && (session as any).circuit_info
+
+  // If circuit format, use the specialized component
+  if (isCircuitFormat) {
+    const exercises = session.main_work || session.exercise_blocks || []
+    const circuitInfo = (session as any).circuit_info
+
+    return (
+      <SessionFeedbackCircuit
+        exercises={exercises}
+        circuitInfo={circuitInfo}
+        onFeedbackSubmit={onFeedbackSubmit}
+        onSkip={onSkip}
+      />
+    )
+  }
+
+  // Traditional format feedback below
   const [currentStep, setCurrentStep] = useState(1)
   const [feedback, setFeedback] = useState({
     rpe_reported: 0,

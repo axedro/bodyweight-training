@@ -36,6 +36,8 @@ interface SaveFeedbackRequest {
       rpe_per_circuit: number[]
       technique_per_circuit: number[]
       actual_rest_between_circuits?: number[]
+      actual_rest_between_exercises?: number[]
+      perceived_difficulty_per_circuit?: number[]
     }
   }[]
 }
@@ -140,13 +142,43 @@ serve(async (req: Request) => {
 
           if (currentProgression) {
             // Calculate completion metrics for progression logic
-            const estimatedCompletionRate = feedback.completion_rate || 0.8
-            const estimatedRpe = feedback.rpe_reported || 7
-            const estimatedTechnicalQuality = feedback.technical_quality || 4
-            
+            let estimatedCompletionRate = feedback.completion_rate || 0.8
+            let estimatedRpe = feedback.rpe_reported || 7
+            let estimatedTechnicalQuality = feedback.technical_quality || 4
+
+            // If we have detailed exercise performance data, use it for better accuracy
+            if (exercisePerformance && exercisePerformance.length > 0) {
+              const exercisePerf = exercisePerformance.find(p => p.exerciseId === sessionEx.exercise_id)
+              if (exercisePerf) {
+                // For circuit format, calculate more accurate metrics
+                if (exercisePerf.circuitData) {
+                  const totalTargetReps = sessionEx.reps_planned * (sessionEx.circuits_planned || sessionEx.sets_planned || 1)
+                  const totalActualReps = exercisePerf.circuitData.reps_per_circuit.reduce((a, b) => a + b, 0)
+                  estimatedCompletionRate = Math.min(1.0, totalActualReps / Math.max(1, totalTargetReps))
+
+                  // Use average RPE from all circuits
+                  const validRpes = exercisePerf.circuitData.rpe_per_circuit.filter(rpe => rpe > 0)
+                  if (validRpes.length > 0) {
+                    estimatedRpe = validRpes.reduce((a, b) => a + b, 0) / validRpes.length
+                  }
+
+                  // Use average technique quality from all circuits
+                  const validTechniques = exercisePerf.circuitData.technique_per_circuit.filter(tech => tech > 0)
+                  if (validTechniques.length > 0) {
+                    estimatedTechnicalQuality = validTechniques.reduce((a, b) => a + b, 0) / validTechniques.length
+                  }
+                } else {
+                  // Traditional format
+                  estimatedCompletionRate = Math.min(1.0, exercisePerf.repsCompleted / Math.max(1, sessionEx.reps_planned || 10))
+                  estimatedRpe = exercisePerf.rpeReported || estimatedRpe
+                  estimatedTechnicalQuality = exercisePerf.techniqueQuality || estimatedTechnicalQuality
+                }
+              }
+            }
+
             const completion_rate = estimatedCompletionRate
-            const is_successful = completion_rate >= 0.8 && 
-                                estimatedRpe <= 8 && 
+            const is_successful = completion_rate >= 0.8 &&
+                                estimatedRpe <= 8 &&
                                 estimatedTechnicalQuality >= 3
 
             // Update progression logic
@@ -208,7 +240,16 @@ serve(async (req: Request) => {
         circuit_data: perf.circuitData || null,
         circuit_rpe: perf.circuitData?.rpe_per_circuit || null,
         circuit_technique_quality: perf.circuitData?.technique_per_circuit || null,
-        actual_rest_between_circuits: perf.circuitData?.actual_rest_between_circuits || null
+        actual_rest_between_circuits: perf.circuitData?.actual_rest_between_circuits || null,
+        actual_rest_between_exercises: perf.circuitData?.actual_rest_between_exercises || null,
+        // Calculate aggregated metrics for circuit format
+        total_circuit_reps: perf.circuitData?.reps_per_circuit?.reduce((a, b) => a + b, 0) || perf.repsCompleted,
+        avg_circuit_rpe: perf.circuitData?.rpe_per_circuit?.length
+          ? perf.circuitData.rpe_per_circuit.reduce((a, b) => a + b, 0) / perf.circuitData.rpe_per_circuit.length
+          : perf.rpeReported,
+        avg_circuit_technique: perf.circuitData?.technique_per_circuit?.length
+          ? perf.circuitData.technique_per_circuit.reduce((a, b) => a + b, 0) / perf.circuitData.technique_per_circuit.length
+          : perf.techniqueQuality
       }))
 
       // Get muscle groups for each exercise
@@ -299,9 +340,48 @@ serve(async (req: Request) => {
       
       for (const sessionEx of sessionExercises || []) {
         const muscleGroups = sessionEx.exercises?.muscle_groups || []
-        const estimatedSets = Math.round((sessionEx.sets_planned || 1) * (feedback.completion_rate || 0.8))
-        const estimatedReps = Math.round((sessionEx.reps_planned || 1) * (feedback.completion_rate || 0.8))
-        
+        let actualSets = 0
+        let actualReps = 0
+        let avgRpe = feedback.rpe_reported || 7
+        let avgTechnicalQuality = feedback.technical_quality || 4
+        let isCompleted = feedback.completion_rate >= 0.8
+
+        // Check if we have detailed exercise performance data
+        if (exercisePerformance && exercisePerformance.length > 0) {
+          const exercisePerf = exercisePerformance.find(p => p.exerciseId === sessionEx.exercise_id)
+          if (exercisePerf && exercisePerf.circuitData) {
+            // Circuit format: use detailed data
+            actualSets = sessionEx.circuits_planned || sessionEx.sets_planned || 1
+            actualReps = exercisePerf.circuitData.reps_per_circuit.reduce((a, b) => a + b, 0)
+
+            // Calculate average RPE and technique from all circuits
+            const validRpes = exercisePerf.circuitData.rpe_per_circuit.filter(rpe => rpe > 0)
+            if (validRpes.length > 0) {
+              avgRpe = validRpes.reduce((a, b) => a + b, 0) / validRpes.length
+            }
+
+            const validTechniques = exercisePerf.circuitData.technique_per_circuit.filter(tech => tech > 0)
+            if (validTechniques.length > 0) {
+              avgTechnicalQuality = validTechniques.reduce((a, b) => a + b, 0) / validTechniques.length
+            }
+
+            // Check completion based on target vs actual reps
+            const targetReps = sessionEx.reps_planned * actualSets
+            isCompleted = actualReps >= (targetReps * 0.8)
+          } else if (exercisePerf) {
+            // Traditional format: use provided data
+            actualSets = sessionEx.sets_completed || Math.round((sessionEx.sets_planned || 1) * (feedback.completion_rate || 0.8))
+            actualReps = exercisePerf.repsCompleted
+            avgRpe = exercisePerf.rpeReported || avgRpe
+            avgTechnicalQuality = exercisePerf.techniqueQuality || avgTechnicalQuality
+            isCompleted = actualReps >= ((sessionEx.reps_planned || 10) * 0.8)
+          }
+        } else {
+          // Fallback to estimated values
+          actualSets = Math.round((sessionEx.sets_planned || 1) * (feedback.completion_rate || 0.8))
+          actualReps = Math.round((sessionEx.reps_planned || 1) * (feedback.completion_rate || 0.8))
+        }
+
         for (const muscleGroup of muscleGroups) {
           if (!muscleGroupData[muscleGroup]) {
             muscleGroupData[muscleGroup] = {
@@ -315,15 +395,15 @@ serve(async (req: Request) => {
               exercises_completed: 0
             }
           }
-          
-          muscleGroupData[muscleGroup].total_sets += estimatedSets
-          muscleGroupData[muscleGroup].total_reps += estimatedReps
-          muscleGroupData[muscleGroup].rpe_sum += feedback.rpe_reported || 7
+
+          muscleGroupData[muscleGroup].total_sets += actualSets
+          muscleGroupData[muscleGroup].total_reps += actualReps
+          muscleGroupData[muscleGroup].rpe_sum += avgRpe
           muscleGroupData[muscleGroup].rpe_count += 1
-          muscleGroupData[muscleGroup].technical_quality_sum += feedback.technical_quality || 4
+          muscleGroupData[muscleGroup].technical_quality_sum += avgTechnicalQuality
           muscleGroupData[muscleGroup].technical_quality_count += 1
           muscleGroupData[muscleGroup].exercises_attempted += 1
-          muscleGroupData[muscleGroup].exercises_completed += (feedback.completion_rate >= 0.8 ? 1 : 0)
+          muscleGroupData[muscleGroup].exercises_completed += (isCompleted ? 1 : 0)
         }
       }
 
